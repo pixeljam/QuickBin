@@ -4,29 +4,31 @@ using System.Text;
 
 namespace QuickBin {
 	public sealed class Serializer {
-		private readonly List<byte> bytes;
+		private readonly List<byte> buffer;
 		private int boolPlace = 0;
 		
+		/// <summary>The bytes in the Serializer.</summary>
+		public IEnumerable<byte> Bytes => buffer;
 		/// <summary>The number of bytes in the Serializer.</summary>
-		public int Length => bytes.Count;
+		public int Length => buffer.Count;
 		
 
 		/// <summary>Generates a Serializer, initializing an empty list with a capacity of 0.</summary>
-		public Serializer() => bytes = new List<byte>();
+		public Serializer() => buffer = new List<byte>();
 		/// <summary>Generates a Serializer, initializing an empty list with the specified capacity.</summary>
 		/// <param name="capacity">The capacity of the list. See documentation for System.Collections.Generic.List<T>(int capacity) for details.</param>
 		/// <remarks>By default, Serializer initializes to little-endian byte order.</remarks>
 		public Serializer(int capacity) {
-			bytes = new List<byte>(capacity);
+			buffer = new List<byte>(capacity);
 		}
 
-		public static implicit operator byte[](Serializer serializer) => serializer.bytes.ToArray();
-		public static implicit operator List<byte>(Serializer serializer) => serializer.bytes;
+		public static implicit operator byte[](Serializer serializer) => serializer.buffer.ToArray();
+		public static implicit operator List<byte>(Serializer serializer) => serializer.buffer;
 
 		/// <summary>Clears the internal List so that the Serializer can be reused.</summary>
 		/// <returns>This Serializer.</returns>
 		public Serializer Clear() {
-			bytes.Clear();
+			buffer.Clear();
 			return this;
 		}
 		
@@ -35,20 +37,20 @@ namespace QuickBin {
 			f(bytes, value);
 			
 			foreach (byte b in bytes)
-				this.bytes.Add(b);
+				this.buffer.Add(b);
 			
 			boolPlace = 0;
 			return this;
 		}
 		
 		internal Serializer WriteGeneric<T>(T value, Func<T, byte> f) {
-			bytes.Add(f(value));
+			buffer.Add(f(value));
 			boolPlace = 0;
 			return this;
 		}
 
 		internal Serializer WriteGeneric<T>(T value, Func<T, byte[]> f) {
-			bytes.AddRange(f(value));
+			buffer.AddRange(f(value));
 			boolPlace = 0;
 			return this;
 		}
@@ -79,7 +81,7 @@ namespace QuickBin {
 			if (boolPlace == 0)
 				this.Write(value);
 			else
-				bytes[^1] |= (byte)(value ? 1 << boolPlace : 0);
+				buffer[^1] |= (byte)(value ? 1 << boolPlace : 0);
 			
 			boolPlace++;
 			boolPlace %= 8;

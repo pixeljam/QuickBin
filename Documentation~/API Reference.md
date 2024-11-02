@@ -155,6 +155,8 @@ public static Deserializer Read(this Deserializer buffer, out MyType value) => b
 The `Deserializer` class has substantially more internal state than `Serializer`, a good chunk of which is exposed to the user.
 
 ### Properties
+`IEnumerable<byte> Bytes` The byte array that the buffer is reading from, in its entirety.
+
 `int ReadIndex` The index in the provided array that the buffer will read from next.
 
 `int ForbiddenIndex` The index in the provided array that the buffer will not attempt to read past. This is essentially a compromise towards being unable to use `Span` without turning Deserializer into a ref struct, which would make it impossible to extend in anything earlier than C# 13.

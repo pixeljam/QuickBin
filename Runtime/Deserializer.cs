@@ -5,9 +5,12 @@ using QuickBin.ChainExtensions;
 
 namespace QuickBin {
 	public sealed class Deserializer {
-		private readonly byte[] buffer;
+		public readonly byte[] buffer;
 		private int boolPlace = 0;
 		private byte flagByte = 0;
+		
+		/// <summary>Returns the entire contents of the buffer, ignoring the ReadIndex and ForbiddenIndex.</summary>
+		public IEnumerable<byte> Bytes => buffer;
 		
 		/// <summary>The next index in the buffer that will be read from.</summary>
 		public int ReadIndex {get; private set;}
