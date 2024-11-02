@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 
 namespace QuickBin {
-	public sealed class Serializer {
+	public sealed class Serializer : IEnumerable<byte> {
 		private readonly List<byte> buffer;
 		private int boolPlace = 0;
 		
@@ -24,6 +24,9 @@ namespace QuickBin {
 
 		public static implicit operator byte[](Serializer serializer) => serializer.buffer.ToArray();
 		public static implicit operator List<byte>(Serializer serializer) => serializer.buffer;
+		
+		public IEnumerator<byte> GetEnumerator() => buffer.GetEnumerator();
+		System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
 
 		/// <summary>Clears the internal List so that the Serializer can be reused.</summary>
 		/// <returns>This Serializer.</returns>

@@ -4,13 +4,13 @@ using System.Text;
 using QuickBin.ChainExtensions;
 
 namespace QuickBin {
-	public sealed class Deserializer {
+	public sealed class Deserializer : IEnumerable<byte> {
 		public readonly byte[] buffer;
 		private int boolPlace = 0;
 		private byte flagByte = 0;
 		
 		/// <summary>Returns the entire contents of the buffer, ignoring the ReadIndex and ForbiddenIndex.</summary>
-		public IEnumerable<byte> Bytes => buffer;
+		public IEnumerable<byte> Source => buffer;
 		
 		/// <summary>The next index in the buffer that will be read from.</summary>
 		public int ReadIndex {get; private set;}
@@ -45,6 +45,9 @@ namespace QuickBin {
 
 		public static implicit operator byte[](Deserializer deserializer) => deserializer.buffer;
 		public static implicit operator List<byte>(Deserializer deserializer) => new(deserializer.buffer);
+		
+		public IEnumerator<byte> GetEnumerator() => new ArraySegment<byte>(buffer, ReadIndex, Remaining).GetEnumerator();
+		System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
 		
 		public Deserializer Validate<T>(Func<T> constructor, out T variable, Func<T> onOverflow = null) =>
 			this.Assign(Overflowed ? (onOverflow == null ? default : onOverflow()) : constructor(), out variable);
