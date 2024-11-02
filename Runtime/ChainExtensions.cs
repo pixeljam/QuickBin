@@ -41,11 +41,36 @@ namespace QuickBin.ChainExtensions {
 		/// <summary>Executes an action for each value in the specified IEnumerable.</summary>
 		/// <param name="values">The IEnumerable of values to act on.</param>
 		/// <param name="action">The action to execute on each value.</param>
-		/// <returns>This serializer.</returns>
+		/// <returns><c>@this</c></returns>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static TChain ForEach<TChain, T>(this TChain @this, IEnumerable<T> values, Action<T> action) {
 			foreach (var value in values)
 				action(value);
+			return @this;
+		}
+		
+		/// <summary>Executes an action for each value in the specified IEnumerable.</summary>
+		/// <param name="values">The IEnumerable of values to act on.</param>
+		/// <param name="action">The action to execute on each value.</param>
+		/// <returns><c>@this</c></returns>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static TChain ForEach<TChain, T>(this TChain @this, IEnumerable<T> values, Action<TChain, T> action) {
+			foreach (var value in values)
+				action(@this, value);
+			return @this;
+		}
+		
+		/// <summary>Executes evaluates a function a specified number of times, returning the produced values as an IEnumerable.</summary>
+		/// <param name="produced">An IEnumerable of all values returned by <c>func</c>.</param>
+		/// <param name="func">The function to evaluate. Receives <c>@this</c> as an argument, returns a value of type <c>T</c>.</param>
+		/// <param name="count">The number of times to evaluate the function.</param>
+		/// <returns><c>@this</c></returns>
+		public static TChain ForEach<TChain, T>(this TChain @this, out IEnumerable<T> produced, Func<TChain,T> func, int count) {
+			IEnumerable<T> Iterate() {
+				for (var i = 0; i < count; i++)
+					yield return func(@this);
+			}
+			produced = Iterate();
 			return @this;
 		}
 	}

@@ -30,12 +30,6 @@ namespace QuickBin {
 			return this;
 		}
 		
-		public Serializer ForEach<T>(IEnumerable<T> values, Action<Serializer, T> action) {
-			foreach (T value in values)
-				action(this, value);
-			return this;
-		}
-		
 		internal Serializer WriteGeneric<T>(int size, T value, ByteWriter<T> f) {
 			Span<byte> bytes = stackalloc byte[size];
 			f(bytes, value);

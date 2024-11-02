@@ -3,7 +3,7 @@
 ## What QuickBin Is For
 QuickBin does nothing more or less than write data as bytes, and read bytes as data. It is not a compression library, nor is it a data format library. While .NET already provides this functionality, QuickBin has an opinionated design to make the interface between the user and the serialization process virtually invisible.
 
-This is done by providing a fluent API that, as much as possible, corresponds each piece of data to a single, extremely repeatable action, no matter the complexity. At the same time, because it is so focused on this one task, there are very few ways to use it incorrectly, and many ways to build on top of the basic functionality.
+This is done by providing a fluent API that, as much as possible, links each piece of data to a single, extremely repeatable action, no matter the complexity. At the same time, because it is so focused on this one task, there are very few ways to use it incorrectly, and many ways to build on top of the basic functionality.
 
 ## Using QuickBin at the Top Level
 QuickBin uses a top-down approach to serialization. At the bottom are `Write` and `Read` operations for primitive types, and at the top are methods that initialize the process and use the results. As such, QuickBin has no built-in mechanisms for handling circular references. This is left as an exercise for the user.
@@ -172,8 +172,6 @@ The `Deserializer` class has substantially more internal state than `Serializer`
 ### Methods
 `.Validate(constructor, out variable, onOverflow = null)` Validates that the buffer has not overrun, and if it has, sets the output variable to the result of onOverflow, or the default value of the type if onOverflow is null. If the buffer has not overrun, it sets the output variable to the result of the constructor.
 
-`.ReadMany(count, out produced, read)` Performs the same `read` function `count` times.
-
 ## Chain Extensions
 Since QuickBin is designed to be used in a very fluent style, several extra methods are provided in the `ChainExtensions` namespace to make writing block bodied methods less of a necessity. While these methods are made mostly for use in QuickBin, they will be available for use on all types when imported.
 
@@ -186,6 +184,8 @@ Since QuickBin is designed to be used in a very fluent style, several extra meth
 `.When(condition, action)` Executes the action if the condition is true.
 
 `.ForEach(values, action)` Executes `action` for each value in `values`.
+
+`.ForEach(out produced, func, count)` Performs `func` `count` times, and puts each value it returns into `produced`.
 
 ## Patterns and Practices
 
@@ -231,18 +231,21 @@ public static Deserializer Read(this Deserializer buffer, out Paintjob produced)
 ```
 
 ### Collections
-QuickBin provides the `WriteMany` and `ReadMany` methods to make serializing collections easier. In order to know how to read and write the elements in a collection, each of these methods requires a delegate that takes a `Serializer` or `Deserializer` and the element to be written or read. This is the exact same pattern as all of the default `Write` and `Read` methods, so in most cases you can just pass `buffer.Write` or `buffer.Read` respectively, and C# will automatically determine which overload to use based on the type in the collection.
-
-It's somewhat more difficult to handle automatic length prefixing with generic types, so it's expected that you write and read the length of the collection yourself. Here's an example of how to use `WriteMany` and `ReadMany` to serialize an array of integers:
+QuickBin does not have built-in support for collections, but `ForEach` can handle them with a small amount of boilerplate, as shown below. It's somewhat more difficult to automatically handle length prefixing with generic types, so it's expected that you write and read the length of the collection yourself.
 ```cs
+using System.Linq;
+using QuickBin.ChainExtensions;
+
+// ...
+
 public static Serializer Write(this Serializer buffer, MyType value) => buffer
 	.Write((ushort)value.ints.Length)
-	.WriteMany(value.ints, buffer.Write);
+	.ForEach(value.ints, val => buffer.Write(val));
 
 public static Deserializer Read(this Deserializer buffer, out MyType produced) => buffer
 	.Read(out ushort count)
-	.ReadMany(out int[] ints, buffer.Read, count)
-	.Validate(() => new MyType(ints), out produced);
+	.ForEach(out var ints, buffer => buffer.Read(out int val).Output(val), count)
+	.Validate(() => new MyType(ints.ToArray()), out produced);
 ```
 
 ### Thread Safety

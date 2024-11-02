@@ -47,16 +47,6 @@ namespace QuickBin {
 			this.Assign(Overflowed ? (onOverflow == null ? default : onOverflow()) : constructor(), out variable);
 		
 		internal static byte[] Extract(ReadOnlySpan<byte> span) => span.ToArray();
-		
-		public delegate T IterationAction<T>(Deserializer buffer);
-		public Deserializer ForEach<T>(out IEnumerable<T> produced, IterationAction<T> action, int count) {
-			IEnumerable<T> Iterate() {
-				for (var i = 0; i < count; i++)
-					yield return action(this);
-			}
-			produced = Iterate();
-			return this;
-		}
 
 		// The ReadGeneric method is the core of the Deserializer.
 		// It handles advancing the ReadIndex, checking for overflow, and reading values from the buffer.
