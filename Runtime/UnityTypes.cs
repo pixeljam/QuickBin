@@ -1,4 +1,6 @@
 using UnityEngine;
+using QuickBin.ChainExtensions;
+using System.Linq;
 
 namespace QuickBin {
 	public static partial class QuickBinExtensions {
@@ -69,6 +71,18 @@ namespace QuickBin {
 			.Write(value.GetColumn(1))
 			.Write(value.GetColumn(2))
 			.Write(value.GetColumn(3));
+		
+		public static Serializer Write(this Serializer buffer, AnimationCurve value) => buffer
+			.Write(value.keys.Length)
+			.ForEach(value.keys, key => buffer.Write(key));
+		
+		public static Serializer Write(this Serializer buffer, Keyframe value) => buffer
+			.Write(value.time)
+			.Write(value.value)
+			.Write(value.inTangent)
+			.Write(value.outTangent)
+			.Write(value.inWeight)
+			.Write(value.outWeight);
 		
 		public static Deserializer Read(this Deserializer buffer, out Vector2 produced) => buffer
 			.Read(out float x)
@@ -150,5 +164,19 @@ namespace QuickBin {
 			.Read(out Vector3Int center)
 			.Read(out Vector3Int size)
 			.Validate(() => new(center, size), out produced);
+		
+		public static Deserializer Read(this Deserializer buffer, out AnimationCurve produced) => buffer
+			.Read(out int length)
+			.ForEach(out var keyframes, buffer => buffer.Read(out Keyframe key).Output(key), length)
+			.Validate(() => new(keyframes.ToArray()), out produced);
+
+		public static Deserializer Read(this Deserializer buffer, out Keyframe produced) => buffer
+			.Read(out float time)
+			.Read(out float value)
+			.Read(out float inTangent)
+			.Read(out float outTangent)
+			.Read(out float inWeight)
+			.Read(out float outWeight)
+			.Validate(() => new(time, value, inTangent, outTangent, inWeight, outWeight), out produced);
 	}
 }
