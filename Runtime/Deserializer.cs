@@ -76,14 +76,25 @@ namespace QuickBin {
 		/// <param name="len">The length of the byte array.</param>
 		/// <returns>Whether the Deserializer overflowed.</returns>
 		public delegate bool LengthReader(Deserializer buffer, out int len);
-		public static bool Len_i64(Deserializer buffer, out int len) => buffer.Read(out long   _len).Assign((int)_len, out len).Output(buffer.Overflowed);
-		public static bool Len_u64(Deserializer buffer, out int len) => buffer.Read(out ulong  _len).Assign((int)_len, out len).Output(buffer.Overflowed);
-		public static bool Len_i32(Deserializer buffer, out int len) => buffer.Read(out int    _len).Assign(     _len, out len).Output(buffer.Overflowed);
-		public static bool Len_u32(Deserializer buffer, out int len) => buffer.Read(out uint   _len).Assign((int)_len, out len).Output(buffer.Overflowed);
-		public static bool Len_i16(Deserializer buffer, out int len) => buffer.Read(out short  _len).Assign(     _len, out len).Output(buffer.Overflowed);
-		public static bool Len_u16(Deserializer buffer, out int len) => buffer.Read(out ushort _len).Assign(     _len, out len).Output(buffer.Overflowed);
-		public static bool Len_i8 (Deserializer buffer, out int len) => buffer.Read(out sbyte  _len).Assign(     _len, out len).Output(buffer.Overflowed);
-		public static bool Len_u8 (Deserializer buffer, out int len) => buffer.Read(out byte   _len).Assign(     _len, out len).Output(buffer.Overflowed);
+		private static bool _Len_i64(Deserializer buffer, out int len) => buffer.Read(out long   _len).Assign((int)_len, out len).Output(buffer.Overflowed);
+		private static bool _Len_u64(Deserializer buffer, out int len) => buffer.Read(out ulong  _len).Assign((int)_len, out len).Output(buffer.Overflowed);
+		private static bool _Len_i32(Deserializer buffer, out int len) => buffer.Read(out int    _len).Assign(     _len, out len).Output(buffer.Overflowed);
+		private static bool _Len_u32(Deserializer buffer, out int len) => buffer.Read(out uint   _len).Assign((int)_len, out len).Output(buffer.Overflowed);
+		private static bool _Len_i16(Deserializer buffer, out int len) => buffer.Read(out short  _len).Assign(     _len, out len).Output(buffer.Overflowed);
+		private static bool _Len_u16(Deserializer buffer, out int len) => buffer.Read(out ushort _len).Assign(     _len, out len).Output(buffer.Overflowed);
+		private static bool _Len_i8 (Deserializer buffer, out int len) => buffer.Read(out sbyte  _len).Assign(     _len, out len).Output(buffer.Overflowed);
+		private static bool _Len_u8 (Deserializer buffer, out int len) => buffer.Read(out byte   _len).Assign(     _len, out len).Output(buffer.Overflowed);
+
+		// C# is so stupid. Passing static methods in as arguments causes delegate instances to be allocated on the heap. Every. Single. Time.
+		// To work around that, we just make them in advance and expose those instead.
+		public static readonly LengthReader Len_i64 = _Len_i64;
+		public static readonly LengthReader Len_u64 = _Len_u64;
+		public static readonly LengthReader Len_i32 = _Len_i32;
+		public static readonly LengthReader Len_u32 = _Len_u32;
+		public static readonly LengthReader Len_i16 = _Len_i16;
+		public static readonly LengthReader Len_u16 = _Len_u16;
+		public static readonly LengthReader Len_i8  = _Len_i8;
+		public static readonly LengthReader Len_u8  = _Len_u8;
 		
 		/// <summary>Reads booleans from the same byte if possible.</summary>
 		/// <param name="produced">The boolean that was read.</param>

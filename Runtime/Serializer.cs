@@ -63,14 +63,25 @@ namespace QuickBin {
 		/// <param name="value">The byte array to write the length of.</param>
 		/// <returns>This Serializer.</returns>
 		public delegate Serializer LengthWriter(Serializer buffer, byte[] value);
-		public static Serializer Len_i64(Serializer buffer, byte[] value) => buffer.Write(value.LongLength);
-		public static Serializer Len_u64(Serializer buffer, byte[] value) => buffer.Write((ulong)value.LongLength);
-		public static Serializer Len_i32(Serializer buffer, byte[] value) => buffer.Write(value.Length);
-		public static Serializer Len_u32(Serializer buffer, byte[] value) => buffer.Write((uint)value.LongLength);
-		public static Serializer Len_i16(Serializer buffer, byte[] value) => buffer.Write((short)value.Length);
-		public static Serializer Len_u16(Serializer buffer, byte[] value) => buffer.Write((ushort)value.Length);
-		public static Serializer Len_i8(Serializer buffer, byte[] value) =>  buffer.Write((sbyte)value.Length);
-		public static Serializer Len_u8(Serializer buffer, byte[] value) =>  buffer.Write((byte)value.Length);
+		private static Serializer _Len_i64(Serializer buffer, byte[] value) => buffer.Write(value.LongLength);
+		private static Serializer _Len_u64(Serializer buffer, byte[] value) => buffer.Write((ulong)value.LongLength);
+		private static Serializer _Len_i32(Serializer buffer, byte[] value) => buffer.Write(value.Length);
+		private static Serializer _Len_u32(Serializer buffer, byte[] value) => buffer.Write((uint)value.LongLength);
+		private static Serializer _Len_i16(Serializer buffer, byte[] value) => buffer.Write((short)value.Length);
+		private static Serializer _Len_u16(Serializer buffer, byte[] value) => buffer.Write((ushort)value.Length);
+		private static Serializer _Len_i8(Serializer buffer, byte[] value) =>  buffer.Write((sbyte)value.Length);
+		private static Serializer _Len_u8(Serializer buffer, byte[] value) =>  buffer.Write((byte)value.Length);
+
+		// C# is so stupid. Passing static methods in as arguments causes delegate instances to be allocated on the heap. Every. Single. Time.
+		// To work around that, we just make them in advance and expose those instead.
+		public static readonly LengthWriter Len_i64 = _Len_i64;
+		public static readonly LengthWriter Len_u64 = _Len_u64;
+		public static readonly LengthWriter Len_i32 = _Len_i32;
+		public static readonly LengthWriter Len_u32 = _Len_u32;
+		public static readonly LengthWriter Len_i16 = _Len_i16;
+		public static readonly LengthWriter Len_u16 = _Len_u16;
+		public static readonly LengthWriter Len_i8  = _Len_i8;
+		public static readonly LengthWriter Len_u8  = _Len_u8;
 		
 
 		/// <summary>Writes booleans into the same byte if possible.</summary>
@@ -80,12 +91,12 @@ namespace QuickBin {
 		public Serializer WriteFlag(bool value, bool forceNewByte = false) {
 			if (forceNewByte)
 				boolPlace = 0;
-			
+
 			if (boolPlace == 0)
 				this.Write(value);
 			else
 				buffer[^1] |= (byte)(value ? 1 << boolPlace : 0);
-			
+
 			boolPlace++;
 			boolPlace %= 8;
 			return this;
