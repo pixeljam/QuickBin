@@ -127,11 +127,11 @@ namespace QuickBin {
 		private static Deserializer Read(this Deserializer buffer, out uint produced,   Endianness endianness) => buffer.ReadGeneric(sizeof(uint),   endianness.read_u32, out produced);
 		private static Deserializer Read(this Deserializer buffer, out long produced,   Endianness endianness) => buffer.ReadGeneric(sizeof(long),   endianness.read_i64, out produced);
 		private static Deserializer Read(this Deserializer buffer, out ulong produced,  Endianness endianness) => buffer.ReadGeneric(sizeof(ulong),  endianness.read_u64, out produced);
-		private static Deserializer Read(this Deserializer buffer, out float produced,  Endianness endianness) =>
-			buffer.ReadGeneric(sizeof(float),  span => BitConverter.Int32BitsToSingle(endianness.read_i32(span)), out produced);
+		private static Deserializer Read(this Deserializer buffer, out float produced, Endianness endianness) =>
+			buffer.ReadGeneric(sizeof(float), endianness.read_i32, out int value).Assign(BitConverter.Int32BitsToSingle(value), out produced);
 		private static Deserializer Read(this Deserializer buffer, out double produced, Endianness endianness) =>
-			buffer.ReadGeneric(sizeof(double), span => BitConverter.Int64BitsToDouble(endianness.read_i64(span)), out produced);
-		
+			buffer.ReadGeneric(sizeof(double), endianness.read_i64, out long value).Assign(BitConverter.Int64BitsToDouble(value), out produced);
+
 		public static Deserializer Read(this Deserializer buffer, out short produced)  => buffer.Read(out produced, Endianness.little);
 		public static Deserializer Read(this Deserializer buffer, out ushort produced) => buffer.Read(out produced, Endianness.little);
 		public static Deserializer Read(this Deserializer buffer, out int produced)    => buffer.Read(out produced, Endianness.little);
