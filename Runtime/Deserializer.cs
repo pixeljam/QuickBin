@@ -49,6 +49,7 @@ namespace QuickBin {
 		public IEnumerator<byte> GetEnumerator() => new ArraySegment<byte>(buffer, ReadIndex, Remaining).GetEnumerator();
 		System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
 		
+		[Obsolete("Use Assign(buffer.Overflowed ? default : new(), out produced) instead.")]
 		public Deserializer Validate<T>(Func<T> constructor, out T variable, Func<T> onOverflow = null) =>
 			this.Assign(Overflowed ? (onOverflow == null ? default : onOverflow()) : constructor(), out variable);
 		
@@ -219,11 +220,11 @@ namespace QuickBin {
 		
 		public static Deserializer Read(this Deserializer buffer, out DateTime produced) => buffer
 			.Read(out long ticks)
-			.Validate(() => new(ticks), out produced);
+			.Assign(new(ticks), out produced);
 
 		public static Deserializer Read(this Deserializer buffer, out TimeSpan produced) => buffer
 			.Read(out long ticks)
-			.Validate(() => new(ticks), out produced);
+			.Assign(new(ticks), out produced);
 
 		const int SIGNLESS_MASK = 0b0111_1111_1111_1111;
 		/// <note>Version does not support negative values, so the sign bit is completely ignored by this method.
@@ -233,7 +234,7 @@ namespace QuickBin {
 			.Read(out uint minor)
 			.Read(out uint build)
 			.Read(out uint revision)
-			.Validate(() => new(
+			.Assign(new(
 				(int)(major & SIGNLESS_MASK),
 				(int)(minor & SIGNLESS_MASK),
 				(int)(build & SIGNLESS_MASK),

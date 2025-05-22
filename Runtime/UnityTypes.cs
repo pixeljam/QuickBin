@@ -87,88 +87,88 @@ namespace QuickBin {
 		public static Deserializer Read(this Deserializer buffer, out Vector2 produced) => buffer
 			.Read(out float x)
 			.Read(out float y)
-			.Validate(() => new(x, y), out produced);
+			.Assign(new(x, y), out produced);
 
 		public static Deserializer Read(this Deserializer buffer, out Vector3 produced) => buffer
 			.Read(out float x)
 			.Read(out float y)
 			.Read(out float z)
-			.Validate(() => new(x,y,z), out produced);
+			.Assign(new(x,y,z), out produced);
 
 		public static Deserializer Read(this Deserializer buffer, out Vector4 produced) => buffer
 			.Read(out float x)
 			.Read(out float y)
 			.Read(out float z)
 			.Read(out float w)
-			.Validate(() => new(x, y, z, w), out produced);
+			.Assign(new(x, y, z, w), out produced);
 
 		public static Deserializer Read(this Deserializer buffer, out Vector2Int produced) => buffer
 			.Read(out int x)
 			.Read(out int y)
-			.Validate(() => new(x, y), out produced);
+			.Assign(new(x, y), out produced);
 
 		public static Deserializer Read(this Deserializer buffer, out Vector3Int produced) => buffer
 			.Read(out int x)
 			.Read(out int y)
 			.Read(out int z)
-			.Validate(() => new(x, y), out produced);
+			.Assign(new(x, y), out produced);
 
 		public static Deserializer Read(this Deserializer buffer, out Quaternion produced) => buffer
 			.Read(out float x)
 			.Read(out float y)
 			.Read(out float z)
 			.Read(out float w)
-			.Validate(() => new(x, y, z, w), out produced);
+			.Assign(new(x, y, z, w), out produced);
 
 		public static Deserializer Read(this Deserializer buffer, out Color produced) => buffer
 			.Read(out float r)
 			.Read(out float g)
 			.Read(out float b)
 			.Read(out float a)
-			.Validate(() => new(r, g, b, a), out produced);
+			.Assign(new(r, g, b, a), out produced);
 
 		public static Deserializer Read(this Deserializer buffer, out Color32 produced) => buffer
 			.Read(out byte r)
 			.Read(out byte g)
 			.Read(out byte b)
 			.Read(out byte a)
-			.Validate(() => new(r, g, b, a), out produced);
+			.Assign(new(r, g, b, a), out produced);
 
 		public static Deserializer Read(this Deserializer buffer, out Matrix4x4 produced) => buffer
 			.Read(out Vector4 c1)
 			.Read(out Vector4 c2)
 			.Read(out Vector4 c3)
 			.Read(out Vector4 c4)
-			.Validate(() => new(c1, c2, c3, c4), out produced);
+			.Assign(new(c1, c2, c3, c4), out produced);
 
 		public static Deserializer Read(this Deserializer buffer, out Rect produced) => buffer
 			.Read(out float x)
 			.Read(out float y)
 			.Read(out float width)
 			.Read(out float height)
-			.Validate(() => new(x, y, width, height), out produced);
+			.Assign(new(x, y, width, height), out produced);
 
 		public static Deserializer Read(this Deserializer buffer, out RectInt produced) => buffer
 			.Read(out int x)
 			.Read(out int y)
 			.Read(out int width)
 			.Read(out int height)
-			.Validate(() => new(x, y, width, height), out produced);
+			.Assign(new(x, y, width, height), out produced);
 
 		public static Deserializer Read(this Deserializer buffer, out Bounds produced) => buffer
 			.Read(out Vector3 center)
 			.Read(out Vector3 size)
-			.Validate(() => new(center, size), out produced);
+			.Assign(new(center, size), out produced);
 
 		public static Deserializer Read(this Deserializer buffer, out BoundsInt produced) => buffer
 			.Read(out Vector3Int center)
 			.Read(out Vector3Int size)
-			.Validate(() => new(center, size), out produced);
+			.Assign(new(center, size), out produced);
 		
 		public static Deserializer Read(this Deserializer buffer, out AnimationCurve produced) => buffer
 			.Read(out int length)
 			.ForEach(out var keyframes, buffer => buffer.Read(out Keyframe key).Output(key), length)
-			.Validate(() => new(keyframes.ToArray()), out produced);
+			.Assign(buffer.Overflowed ? default : new(keyframes.ToArray()), out produced);
 
 		public static Deserializer Read(this Deserializer buffer, out Keyframe produced) => buffer
 			.Read(out float time)
@@ -177,6 +177,6 @@ namespace QuickBin {
 			.Read(out float outTangent)
 			.Read(out float inWeight)
 			.Read(out float outWeight)
-			.Validate(() => new(time, value, inTangent, outTangent, inWeight, outWeight), out produced);
+			.Assign(buffer.Overflowed ? default : new(time, value, inTangent, outTangent, inWeight, outWeight), out produced);
 	}
 }
