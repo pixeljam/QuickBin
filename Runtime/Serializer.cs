@@ -4,7 +4,7 @@ using System.Text;
 
 namespace QuickBin {
 	public sealed class Serializer : IEnumerable<byte> {
-		private readonly List<byte> buffer;
+		public readonly List<byte> buffer;
 		private int boolPlace = 0;
 		
 		/// <summary>The bytes in the Serializer.</summary>
