@@ -52,8 +52,9 @@ namespace QuickBin {
 		[Obsolete("Use Assign(buffer.Overflowed ? default : new(), out produced) instead.")]
 		public Deserializer Validate<T>(Func<T> constructor, out T variable, Func<T> onOverflow = null) =>
 			this.Assign(Overflowed ? (onOverflow == null ? default : onOverflow()) : constructor(), out variable);
-		
-		internal static byte[] Extract(ReadOnlySpan<byte> span) => span.ToArray();
+
+		private static byte[] _Extract(ReadOnlySpan<byte> span) => span.ToArray();
+		internal static readonly ByteReader<byte[]> Extract = _Extract;
 
 		// The ReadGeneric method is the core of the Deserializer.
 		// It handles advancing the ReadIndex, checking for overflow, and reading values from the buffer.
@@ -67,6 +68,21 @@ namespace QuickBin {
 			}
 
 			produced = f(buffer.AsSpan(ReadIndex, width));
+			ReadIndex = nextIndex;
+			boolPlace = 0;
+			return this;
+		}
+
+		internal Deserializer ReadSpan(int width, out ReadOnlySpan<byte> produced) {
+			var nextIndex = ReadIndex + width;
+			// It's okay if nextIndex == buffer.Length, because ReadIndex represents the next byte to read, not the last byte read.
+			if (nextIndex > buffer.Length || nextIndex > ForbiddenIndex) {
+				Overflowed = true;
+				produced = default;
+				return this;
+			}
+
+			produced = buffer.AsSpan(ReadIndex, width);
 			ReadIndex = nextIndex;
 			boolPlace = 0;
 			return this;
@@ -171,6 +187,12 @@ namespace QuickBin {
 		public static Deserializer Read(this Deserializer buffer, out byte[] produced, int? length = null) => buffer
 			.ReadGeneric(length ?? buffer.Remaining, Deserializer.Extract, out produced);
 		
+		/// <summary>Reads a byte array from the Deserializer.</summary>
+		/// <param name="produced">The byte array that was read.</param>
+		/// <param name="length">The length of the byte array in bytes. Defaults to the remaining bytes in the buffer.</param>
+		public static Deserializer Read(this Deserializer buffer, out ReadOnlySpan<byte> produced, int? length = null) => buffer
+			.ReadSpan(length ?? buffer.Remaining, out produced);
+		
 		/// <summary>Creates a new Deserializer from a subsection of the current Deserializer.</summary>
 		/// <param name="produced">The Deserializer that was created.</param>
 		/// <param name="length">The length of the byte array in bytes. Defaults to the remaining bytes in the buffer.</param>
@@ -200,6 +222,17 @@ namespace QuickBin {
 		/// <param name="produced">The byte array that was read.</param>
 		/// <param name="readLen">The method to read out the length of the byte array. (e.g. <c>Len_i32</c>)</param>
 		public static Deserializer Read(this Deserializer buffer, out byte[] produced, Deserializer.LengthReader readLen) {
+			if (readLen(buffer, out var len)) {
+				produced = default;
+				return buffer;
+			}
+			return buffer.Read(out produced, len);
+		}
+		
+		/// <summary>Reads a byte span from the Deserializer.</summary>
+		/// <param name="produced">The byte span that was read.</param>
+		/// <param name="readLen">The method to read out the length of the byte span. (e.g. <c>Len_i32</c>)</param>
+		public static Deserializer Read(this Deserializer buffer, out ReadOnlySpan<byte> produced, Deserializer.LengthReader readLen) {
 			if (readLen(buffer, out var len)) {
 				produced = default;
 				return buffer;
