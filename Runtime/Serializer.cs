@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace QuickBin {
@@ -52,25 +53,27 @@ namespace QuickBin {
 			return this;
 		}
 
-		internal Serializer WriteGeneric<T>(T value, Func<T, byte[]> f) {
-			buffer.AddRange(f(value));
+		internal Serializer WriteGeneric(ReadOnlySpan<byte> value) {
+			foreach (byte b in value)
+				buffer.Add(b);
+			
 			boolPlace = 0;
 			return this;
 		}
 		
-		/// <summary>A method that writes the length of a byte array to the Serializer.</summary>
+		/// <summary>A method that writes the length of a byte span to the Serializer.</summary>
 		/// <param name="buffer">The Serializer to write the length to.</param>
-		/// <param name="value">The byte array to write the length of.</param>
+		/// <param name="value">The byte span to write the length of.</param>
 		/// <returns>This Serializer.</returns>
-		public delegate Serializer LengthWriter(Serializer buffer, byte[] value);
-		private static Serializer _Len_i64(Serializer buffer, byte[] value) => buffer.Write(value.LongLength);
-		private static Serializer _Len_u64(Serializer buffer, byte[] value) => buffer.Write((ulong)value.LongLength);
-		private static Serializer _Len_i32(Serializer buffer, byte[] value) => buffer.Write(value.Length);
-		private static Serializer _Len_u32(Serializer buffer, byte[] value) => buffer.Write((uint)value.LongLength);
-		private static Serializer _Len_i16(Serializer buffer, byte[] value) => buffer.Write((short)value.Length);
-		private static Serializer _Len_u16(Serializer buffer, byte[] value) => buffer.Write((ushort)value.Length);
-		private static Serializer _Len_i8(Serializer buffer, byte[] value) =>  buffer.Write((sbyte)value.Length);
-		private static Serializer _Len_u8(Serializer buffer, byte[] value) =>  buffer.Write((byte)value.Length);
+		public delegate Serializer LengthWriter(Serializer buffer, ReadOnlySpan<byte> value);
+		private static Serializer _Len_i64(Serializer buffer, ReadOnlySpan<byte> value) => buffer.Write((long)value.Length);
+		private static Serializer _Len_u64(Serializer buffer, ReadOnlySpan<byte> value) => buffer.Write((ulong)value.Length);
+		private static Serializer _Len_i32(Serializer buffer, ReadOnlySpan<byte> value) => buffer.Write(value.Length);
+		private static Serializer _Len_u32(Serializer buffer, ReadOnlySpan<byte> value) => buffer.Write((uint)value.Length);
+		private static Serializer _Len_i16(Serializer buffer, ReadOnlySpan<byte> value) => buffer.Write((short)value.Length);
+		private static Serializer _Len_u16(Serializer buffer, ReadOnlySpan<byte> value) => buffer.Write((ushort)value.Length);
+		private static Serializer _Len_i8(Serializer buffer, ReadOnlySpan<byte> value) =>  buffer.Write((sbyte)value.Length);
+		private static Serializer _Len_u8(Serializer buffer, ReadOnlySpan<byte> value) =>  buffer.Write((byte)value.Length);
 
 		// C# is so stupid. Passing static methods in as arguments causes delegate instances to be allocated on the heap. Every. Single. Time.
 		// To work around that, we just make them in advance and expose those instead.
@@ -115,7 +118,7 @@ namespace QuickBin {
 		public static Serializer Write(this Serializer buffer, bool value)   => buffer.WriteGeneric(value, x => x ? (byte)1 : (byte)0);
 		public static Serializer Write(this Serializer buffer, byte value)   => buffer.WriteGeneric(value, x => x);
 		public static Serializer Write(this Serializer buffer, sbyte value)  => buffer.WriteGeneric(value, x => (byte)x);
-		public static Serializer Write(this Serializer buffer, char value)   => buffer.WriteGeneric(value, BitConverter.GetBytes);
+		public static Serializer Write(this Serializer buffer, char value)   => buffer.WriteGeneric(BitConverter.GetBytes(value).AsSpan());
 		
 		private static Serializer Write(this Serializer buffer, short value, Endianness endianness)  => buffer.WriteGeneric(sizeof(short),  value, endianness.write_i16);
 		private static Serializer Write(this Serializer buffer, ushort value, Endianness endianness) => buffer.WriteGeneric(sizeof(ushort), value, endianness.write_u16);
@@ -147,15 +150,15 @@ namespace QuickBin {
 		public static Serializer WriteBig(this Serializer buffer, double value) => buffer.Write(value, Endianness.big);
 		
 		
-		/// <summary>Writes a byte array to the Serializer.</summary>
-		/// <param name="value">The byte array to write.</param>
-		public static Serializer Write(this Serializer buffer, byte[] value) => buffer
-			.WriteGeneric(value, x => x);
+		/// <summary>Writes a byte span to the Serializer.</summary>
+		/// <param name="value">The byte span to write.</param>
+		public static Serializer Write(this Serializer buffer, ReadOnlySpan<byte> value) => buffer
+			.WriteGeneric(value);
 		
-		/// <summary>Writes a byte array to the Serializer.</summary>
-		/// <param name="value">The byte array to write.</param>
-		/// <param name="writeLen">The method to use to write the length of the byte array. (e.g. <c>Len_i32</c>)</param>
-		public static Serializer Write(this Serializer buffer, byte[] value, Serializer.LengthWriter writeLen) =>
+		/// <summary>Writes a byte span to the Serializer.</summary>
+		/// <param name="value">The byte span to write.</param>
+		/// <param name="writeLen">The method to use to write the length of the byte span. (e.g. <c>Len_i32</c>)</param>
+		public static Serializer Write(this Serializer buffer, ReadOnlySpan<byte> value, Serializer.LengthWriter writeLen) =>
 			writeLen(buffer, value).Write(value);
 		
 		
