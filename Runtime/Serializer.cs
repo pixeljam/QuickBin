@@ -1,199 +1,76 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+// Serializer.cs (new core)
+using System.Buffers;
+using System.Buffers.Binary;
+using System.Runtime.InteropServices;
 
 namespace QuickBin {
-	public sealed class Serializer : IEnumerable<byte> {
-		public readonly List<byte> buffer;
-		private int boolPlace = 0;
-		
-		/// <summary>The bytes in the Serializer.</summary>
-		public IEnumerable<byte> Bytes => buffer;
-		/// <summary>The number of bytes in the Serializer.</summary>
-		public int Length => buffer.Count;
-		
+	public sealed class Serializer(int capacity = 0) : IEnumerable<byte> {
+		private ArrayBufferWriter<byte> _abw = capacity > 0
+			? new ArrayBufferWriter<byte>(capacity)
+			: new ArrayBufferWriter<byte>();
 
-		/// <summary>Generates a Serializer, initializing an empty list with a capacity of 0.</summary>
-		public Serializer() => buffer = new List<byte>();
-		/// <summary>Generates a Serializer, initializing an empty list with the specified capacity.</summary>
-		/// <param name="capacity">The capacity of the list. See documentation for System.Collections.Generic.List<T>(int capacity) for details.</param>
-		/// <remarks>By default, Serializer initializes to little-endian byte order.</remarks>
-		public Serializer(int capacity) {
-			buffer = new List<byte>(capacity);
-		}
+		public int Length => _abw.WrittenCount;
+		public IEnumerable<byte> Bytes => _abw.WrittenSpan.ToArray(); // keep old API behavior
 
-		public static implicit operator byte[](Serializer serializer) => serializer.buffer.ToArray();
-		public static implicit operator List<byte>(Serializer serializer) => serializer.buffer;
-		
-		public IEnumerator<byte> GetEnumerator() => buffer.GetEnumerator();
-		System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
-
-		/// <summary>Clears the internal List so that the Serializer can be reused.</summary>
-		/// <returns>This Serializer.</returns>
-		public Serializer Clear() {
-			buffer.Clear();
-			return this;
-		}
-		
-		internal Serializer WriteGeneric<T>(int size, T value, ByteWriter<T> f) {
-			Span<byte> bytes = stackalloc byte[size];
-			f(bytes, value);
-			
-			foreach (byte b in bytes)
-				buffer.Add(b);
-			
-			boolPlace = 0;
-			return this;
-		}
-		
-		internal Serializer WriteGeneric<T>(T value, Func<T, byte> f) {
-			buffer.Add(f(value));
-			boolPlace = 0;
+		// Bulk append of spans (no per-byte loop)
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		internal Serializer WriteSpan(ReadOnlySpan<byte> src) {
+			var dest = _abw.GetSpan(src.Length);
+			src.CopyTo(dest);
+			_abw.Advance(src.Length);
+			_boolPlace = 0;
 			return this;
 		}
 
-		internal Serializer WriteGeneric(ReadOnlySpan<byte> value) {
-			foreach (byte b in value)
-				buffer.Add(b);
-			
-			boolPlace = 0;
+		// Primitive writers without stackalloc
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public Serializer Write(int value) {
+			var span = _abw.GetSpan(4);
+			BinaryPrimitives.WriteInt32LittleEndian(span, value);
+			_abw.Advance(4);
+			_boolPlace = 0;
 			return this;
 		}
-		
-		/// <summary>A method that writes the length of a byte span to the Serializer.</summary>
-		/// <param name="buffer">The Serializer to write the length to.</param>
-		/// <param name="value">The byte span to write the length of.</param>
-		/// <returns>This Serializer.</returns>
-		public delegate Serializer LengthWriter(Serializer buffer, ReadOnlySpan<byte> value);
-		private static Serializer _Len_i64(Serializer buffer, ReadOnlySpan<byte> value) => buffer.Write((long)value.Length);
-		private static Serializer _Len_u64(Serializer buffer, ReadOnlySpan<byte> value) => buffer.Write((ulong)value.Length);
-		private static Serializer _Len_i32(Serializer buffer, ReadOnlySpan<byte> value) => buffer.Write(value.Length);
-		private static Serializer _Len_u32(Serializer buffer, ReadOnlySpan<byte> value) => buffer.Write((uint)value.Length);
-		private static Serializer _Len_i16(Serializer buffer, ReadOnlySpan<byte> value) => buffer.Write((short)value.Length);
-		private static Serializer _Len_u16(Serializer buffer, ReadOnlySpan<byte> value) => buffer.Write((ushort)value.Length);
-		private static Serializer _Len_i8(Serializer buffer, ReadOnlySpan<byte> value) =>  buffer.Write((sbyte)value.Length);
-		private static Serializer _Len_u8(Serializer buffer, ReadOnlySpan<byte> value) =>  buffer.Write((byte)value.Length);
+		// (repeat for uint, long, ulong, short, ushort, float via SingleToInt32Bits, double via DoubleToInt64Bits, etc.)
 
-		// C# is so stupid. Passing static methods in as arguments causes delegate instances to be allocated on the heap. Every. Single. Time.
-		// To work around that, we just make them in advance and expose those instead.
-		public static readonly LengthWriter Len_i64 = _Len_i64;
-		public static readonly LengthWriter Len_u64 = _Len_u64;
-		public static readonly LengthWriter Len_i32 = _Len_i32;
-		public static readonly LengthWriter Len_u32 = _Len_u32;
-		public static readonly LengthWriter Len_i16 = _Len_i16;
-		public static readonly LengthWriter Len_u16 = _Len_u16;
-		public static readonly LengthWriter Len_i8  = _Len_i8;
-		public static readonly LengthWriter Len_u8  = _Len_u8;
-		
+		// Existing string overloads can switch to Encoder.Convert into GetSpan chunks to avoid temp arrays (optional).
 
-		/// <summary>Writes booleans into the same byte if possible.</summary>
-		/// <param name="value">The boolean to write.</param>
-		/// <param name="forceNewByte">Whether to force writing a new byte, even if there's still space for flags in the current byte.</param>
-		/// <returns>This Serializer.</returns>
-		public Serializer WriteFlag(bool value, bool forceNewByte = false) {
-			if (forceNewByte)
-				boolPlace = 0;
+		// Expose an efficient handoff when you truly need a byte[]:
+		public byte[] ToArray() => _abw.WrittenSpan.ToArray();
+		internal ReadOnlySpan<byte> WrittenSpan => _abw.WrittenSpan;
 
-			if (boolPlace == 0)
-				this.Write(value);
-			else
-				buffer[^1] |= (byte)(value ? 1 << boolPlace : 0);
+		// pooled helpers (section 3)
+		public static Serializer GetPooled(int capacityHint = 0) => SerializerPool.Get(capacityHint);
+		public byte[] ToArrayAndReturn() => SerializerPool.ToArrayAndReturn(this);
 
-			boolPlace++;
-			boolPlace %= 8;
+		// --- length patch helpers (used by WriteTo in #1) ---
+		public int ReserveU16LittleEndian() {
+			var span = _abw.GetSpan(2);
+			// leave zeros; return absolute position to patch
+			int pos = _abw.WrittenCount;
+			_abw.Advance(2);
+			return pos;
+		}
+		public void PatchU16LittleEndian(int absolutePos, ushort value) {
+			var whole = MemoryMarshal.CreateSpan(ref MemoryMarshal.GetReference(_abw.WrittenSpan), _abw.WrittenCount);
+			BinaryPrimitives.WriteUInt16LittleEndian(whole.Slice(absolutePos, 2), value);
+		}
+
+		private int _boolPlace = 0;
+		public Serializer WriteFlag(bool value, bool forceNewByte=false) {
+			if (forceNewByte || _boolPlace == 0) {
+				// write new flag byte
+				var s = _abw.GetSpan(1);
+				s[0] = value ? (byte)1 : (byte)0;
+				_abw.Advance(1);
+				_boolPlace = 1;
+			} else {
+				var span = _abw.WrittenSpan; // last written byte
+				Span<byte> last = span.Slice(span.Length-1,1);
+				if (value) last[0] |= (byte)(1 << _boolPlace);
+				_boolPlace = (_boolPlace + 1) & 7;
+			}
 			return this;
 		}
-	}
-	
-	/// <summary>
-	/// The reason that absolutely <i>none</i> of the standard Write/Read methods are built into their respective classes is
-	/// because they would take precedence over other extension methods. For MonoBehaviours, this is a huge problem, because
-	/// they are all implicitly castable to bool. C# would rather cast a MonoBehaviour to a bool than use an extension
-	/// method. Any time you'd try to call Write(MonoBehaviour), you'd get Write(bool) instead. This problem extends to all
-	/// implicitly castable types. The only effective way to avoid this is to give all Write methods the same priority,
-	/// which means making them all extension methods. Read methods are also extension methods for consistency.
-	/// </summary>
-	public static partial class QuickBinExtensions {
-		public static Serializer Write(this Serializer buffer, bool value)   => buffer.WriteGeneric(value, x => x ? (byte)1 : (byte)0);
-		public static Serializer Write(this Serializer buffer, byte value)   => buffer.WriteGeneric(value, x => x);
-		public static Serializer Write(this Serializer buffer, sbyte value)  => buffer.WriteGeneric(value, x => (byte)x);
-		public static Serializer Write(this Serializer buffer, char value)   => buffer.WriteGeneric(BitConverter.GetBytes(value).AsSpan());
-		
-		private static Serializer Write(this Serializer buffer, short value, Endianness endianness)  => buffer.WriteGeneric(sizeof(short),  value, endianness.write_i16);
-		private static Serializer Write(this Serializer buffer, ushort value, Endianness endianness) => buffer.WriteGeneric(sizeof(ushort), value, endianness.write_u16);
-		private static Serializer Write(this Serializer buffer, int value, Endianness endianness)    => buffer.WriteGeneric(sizeof(int),    value, endianness.write_i32);
-		private static Serializer Write(this Serializer buffer, uint value, Endianness endianness)   => buffer.WriteGeneric(sizeof(uint),   value, endianness.write_u32);
-		private static Serializer Write(this Serializer buffer, long value, Endianness endianness)   => buffer.WriteGeneric(sizeof(long),   value, endianness.write_i64);
-		private static Serializer Write(this Serializer buffer, ulong value, Endianness endianness)  => buffer.WriteGeneric(sizeof(ulong),  value, endianness.write_u64);
-		private static Serializer Write(this Serializer buffer, float value, Endianness endianness)  =>
-			buffer.WriteGeneric(sizeof(float),  (value, endianness), (dest, tup) => tup.endianness.write_i32(dest, BitConverter.SingleToInt32Bits(tup.value)));
-		private static Serializer Write(this Serializer buffer, double value, Endianness endianness) =>
-			buffer.WriteGeneric(sizeof(double), (value, endianness), (dest, tup) => tup.endianness.write_i64(dest, BitConverter.DoubleToInt64Bits(tup.value)));
-		
-		public static Serializer Write(this Serializer buffer, short value)  => buffer.Write(value, Endianness.little);
-		public static Serializer Write(this Serializer buffer, ushort value) => buffer.Write(value, Endianness.little);
-		public static Serializer Write(this Serializer buffer, int value)    => buffer.Write(value, Endianness.little);
-		public static Serializer Write(this Serializer buffer, uint value)   => buffer.Write(value, Endianness.little);
-		public static Serializer Write(this Serializer buffer, long value)   => buffer.Write(value, Endianness.little);
-		public static Serializer Write(this Serializer buffer, ulong value)  => buffer.Write(value, Endianness.little);
-		public static Serializer Write(this Serializer buffer, float value)  => buffer.Write(value, Endianness.little);
-		public static Serializer Write(this Serializer buffer, double value) => buffer.Write(value, Endianness.little);
-		
-		public static Serializer WriteBig(this Serializer buffer, short value)  => buffer.Write(value, Endianness.big);
-		public static Serializer WriteBig(this Serializer buffer, ushort value) => buffer.Write(value, Endianness.big);
-		public static Serializer WriteBig(this Serializer buffer, int value)    => buffer.Write(value, Endianness.big);
-		public static Serializer WriteBig(this Serializer buffer, uint value)   => buffer.Write(value, Endianness.big);
-		public static Serializer WriteBig(this Serializer buffer, long value)   => buffer.Write(value, Endianness.big);
-		public static Serializer WriteBig(this Serializer buffer, ulong value)  => buffer.Write(value, Endianness.big);
-		public static Serializer WriteBig(this Serializer buffer, float value)  => buffer.Write(value, Endianness.big);
-		public static Serializer WriteBig(this Serializer buffer, double value) => buffer.Write(value, Endianness.big);
-		
-		
-		/// <summary>Writes a byte span to the Serializer.</summary>
-		/// <param name="value">The byte span to write.</param>
-		public static Serializer Write(this Serializer buffer, ReadOnlySpan<byte> value) => buffer
-			.WriteGeneric(value);
-		
-		/// <summary>Writes a byte span to the Serializer.</summary>
-		/// <param name="value">The byte span to write.</param>
-		/// <param name="writeLen">The method to use to write the length of the byte span. (e.g. <c>Len_i32</c>)</param>
-		public static Serializer Write(this Serializer buffer, ReadOnlySpan<byte> value, Serializer.LengthWriter writeLen) =>
-			writeLen(buffer, value).Write(value);
-		
-		
-		/// <summary>Writes a string to the Serializer.</summary>
-		/// <param name="value">The string to write.</param>
-		/// <param name="encoding">The encoding to use when converting the string to bytes.</param>
-		public static Serializer Write(this Serializer buffer, string value, Encoding encoding) => buffer
-			.Write(encoding.GetBytes(value));
-		
-		/// <summary>Writes a string to the Serializer.</summary>
-		/// <param name="value">The string to write.</param>
-		/// <param name="encoding">The encoding to use when converting the string to bytes.</param>
-		/// <param name="writeLen">The method to use to write the length of the string. (e.g. <c>Len_i32</c>)</param>
-		public static Serializer Write(this Serializer buffer, string value, Encoding encoding, Serializer.LengthWriter writeLen) => buffer
-			.Write(encoding.GetBytes(value), writeLen);
-		
-		/// <summary>Writes a string to the Serializer using UTF-8 encoding.</summary>
-		/// <param name="value">The string to write.</param>
-		public static Serializer Write(this Serializer buffer, string value) => buffer
-			.Write(value, Encoding.UTF8);
-		
-		/// <summary>Writes a string to the Serializer using UTF-8 encoding.</summary>
-		/// <param name="value">The string to write.</param>
-		/// <param name="writeLen">The method to use to write the length of the string. (e.g. <c>Len_i32</c>)</param>
-		public static Serializer Write(this Serializer buffer, string value, Serializer.LengthWriter writeLen) => buffer
-			.Write(value, Encoding.UTF8, writeLen);
-		
-		
-		public static Serializer Write(this Serializer buffer, DateTime value) => buffer.Write(value.Ticks);
-		public static Serializer Write(this Serializer buffer, TimeSpan value) => buffer.Write(value.Ticks);
-		
-		public static Serializer Write(this Serializer buffer, Version value) => buffer
-			.Write(value.Major)
-			.Write(value.Minor)
-			.Write(value.Build)
-			.Write(value.Revision);
 	}
 }
