@@ -320,6 +320,11 @@ namespace QuickBin {
 			return this;
 		}
 
+		public Serializer Write(DateTime value) => Write(value.Ticks);
+		public Serializer Write(TimeSpan value) => Write(value.Ticks);
+		public Serializer Write(Version value) => Write(value.Major).Write(value.Minor).Write(value.Build).Write(value.Revision);
+		
+
 		// --- pooled helpers ---
 
 		/// <summary>Get a Serializer from the pool (optionally with a capacity hint).</summary>
