@@ -332,6 +332,7 @@ namespace QuickBin {
 		public static readonly LengthWriter Len_i32 = static (b, len) => b.Write(len);
 		public static readonly LengthWriter Len_u32 = static (b, len) => b.Write((uint)len);
 		public static readonly LengthWriter Len_u16 = static (b, len) => b.Write((ushort)len);
+		public static readonly LengthWriter Len_u8 = static (b, len) => b.Write((byte)len);
 
 		// -------- length-prefixed writers --------
 
