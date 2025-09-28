@@ -393,16 +393,6 @@ namespace QuickBin {
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public Serializer Write(string value, LengthWriter writeLen) => Write(value, System.Text.Encoding.UTF8, writeLen);
 
-		// Optional: unmanaged T[] with length prefix (packs raw bytes)
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public unsafe Serializer WriteUnmanagedArray<T>(T[] values, LengthWriter writeLen) where T : unmanaged {
-			if (values == null || values.Length == 0) { writeLen(this, 0); return this; }
-			int bytes = values.Length * sizeof(T);
-			writeLen(this, bytes);
-			var span = MemoryMarshal.AsBytes(values.AsSpan());
-			return Write(span);
-		}		
-
 		// --- pooled helpers ---
 
 		/// <summary>Get a Serializer from the pool (optionally with a capacity hint).</summary>
