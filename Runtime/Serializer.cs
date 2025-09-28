@@ -140,13 +140,21 @@ namespace QuickBin {
 
 		// --- flag packing ---
 
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		void CommitFlagByte() {
+			EnsureCapacity(1);
+			_buffer[_count++] = _flagAccumulator;
+			_hasPendingFlagByte = false;
+			_flagAccumulator = 0;
+			_flagBitIndex = 0;
+		}
+
 		/// <summary>
 		/// Packs booleans into a single byte (up to 8 per byte). Set <paramref name="forceNewByte"/> to start a new flag group.
 		/// </summary>
 		public Serializer WriteFlag(bool value, bool forceNewByte = false) {
 			if (forceNewByte) FlushPendingFlagByte(true);
 
-			// Start a new accumulator if none pending
 			if (!_hasPendingFlagByte) {
 				_flagAccumulator = 0;
 				_flagBitIndex = 0;
@@ -156,27 +164,16 @@ namespace QuickBin {
 			if (value) _flagAccumulator |= (byte)(1 << _flagBitIndex);
 
 			_flagBitIndex++;
-			if (_flagBitIndex >= 8) {
-				// commit the full flag byte
-				var s = GetSpan(1);
-				s[0] = _flagAccumulator;
-				_hasPendingFlagByte = false;
-				_flagAccumulator = 0;
-				_flagBitIndex = 0;
-			}
+			if (_flagBitIndex >= 8) CommitFlagByte();
+
 			return this;
 		}
 
 		/// <summary>Flushes a partially filled flag byte into the buffer (if any).</summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		void FlushPendingFlagByte(bool force = false) {
-			if (_hasPendingFlagByte && (_flagBitIndex > 0 || force)) {
-				var s = GetSpan(1);
-				s[0] = _flagAccumulator;
-				_hasPendingFlagByte = false;
-				_flagAccumulator = 0;
-				_flagBitIndex = 0;
-			}
+			if (_hasPendingFlagByte && (_flagBitIndex > 0 || force))
+				CommitFlagByte();
 		}
 
 		/// <summary>
