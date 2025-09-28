@@ -323,7 +323,85 @@ namespace QuickBin {
 		public Serializer Write(DateTime value) => Write(value.Ticks);
 		public Serializer Write(TimeSpan value) => Write(value.Ticks);
 		public Serializer Write(Version value) => Write(value.Major).Write(value.Minor).Write(value.Build).Write(value.Revision);
-		
+
+		// ================= Length prefix helpers =================
+
+		public delegate void LengthWriter(Serializer buffer, int length);
+
+		// Common length encoders (match your old names/usages)
+		public static readonly LengthWriter Len_i32 = static (b, len) => b.Write(len);
+		public static readonly LengthWriter Len_u32 = static (b, len) => b.Write((uint)len);
+		public static readonly LengthWriter Len_u16 = static (b, len) => b.Write((ushort)len);
+
+		// -------- length-prefixed writers --------
+
+		// byte[] with length prefix
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public Serializer Write(byte[] value, LengthWriter writeLen) {
+			if (value == null) { writeLen(this, 0); return this; }
+			writeLen(this, value.Length);
+			return Write((ReadOnlySpan<byte>)value);
+		}
+
+		// ReadOnlySpan<byte> with length prefix
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public Serializer Write(ReadOnlySpan<byte> value, LengthWriter writeLen) {
+			writeLen(this, value.Length);
+			return Write(value);
+		}
+
+		// string with explicit encoding + length prefix
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public Serializer Write(string value, System.Text.Encoding encoding, LengthWriter writeLen) {
+			if (string.IsNullOrEmpty(value)) {
+				writeLen(this, 0);
+				return this;
+			}
+			// Write the byte count first (no allocation)
+			int byteCount = encoding.GetByteCount(value);
+			writeLen(this, byteCount);
+
+			// Stream the bytes without temp arrays (uses Encoder + chunks)
+			var enc = encoding.GetEncoder();
+			int charIndex = 0;
+			var chars = value.AsSpan();
+			while (charIndex < chars.Length) {
+				// Pick a chunk size; we just need to ensure the span fits
+				// If you want: compute remaining bytes and request exactly that.
+				int chunkBytes = Math.Min(byteCount, 4096);
+				var dest = GetSpan(chunkBytes);
+
+				enc.Convert(
+					chars.Slice(charIndex),
+					dest,
+					flush: charIndex + 1024 >= chars.Length, // flush near the end
+					out int charsUsed,
+					out int bytesUsed,
+					out bool completed
+				);
+
+				// We may have requested more than needed; rewind any unused tail
+				_count -= (chunkBytes - bytesUsed);
+
+				charIndex += charsUsed;
+				if (completed && charIndex >= chars.Length) break;
+			}
+			return this;
+		}
+
+		// string (UTF-8) with length prefix convenience
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public Serializer Write(string value, LengthWriter writeLen) => Write(value, System.Text.Encoding.UTF8, writeLen);
+
+		// Optional: unmanaged T[] with length prefix (packs raw bytes)
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public unsafe Serializer WriteUnmanagedArray<T>(T[] values, LengthWriter writeLen) where T : unmanaged {
+			if (values == null || values.Length == 0) { writeLen(this, 0); return this; }
+			int bytes = values.Length * sizeof(T);
+			writeLen(this, bytes);
+			var span = MemoryMarshal.AsBytes(values.AsSpan());
+			return Write(span);
+		}		
 
 		// --- pooled helpers ---
 
