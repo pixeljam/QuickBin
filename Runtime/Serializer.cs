@@ -217,7 +217,110 @@ namespace QuickBin {
 			BinaryPrimitives.WriteUInt32LittleEndian(whole.Slice(absolutePos, 4), value);
 		}
 
-		// --- pooled helpers (step 3) ---
+		// --- Primitive writers ---
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public Serializer Write(byte value) {
+			var s = GetSpan(1);
+			s[0] = value;
+			return this;
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public Serializer Write(sbyte value) {
+			var s = GetSpan(1);
+			s[0] = unchecked((byte)value);
+			return this;
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public Serializer Write(short value) {
+			var s = GetSpan(2);
+			BinaryPrimitives.WriteInt16LittleEndian(s, value);
+			return this;
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public Serializer Write(ushort value) {
+			var s = GetSpan(2);
+			BinaryPrimitives.WriteUInt16LittleEndian(s, value);
+			return this;
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public Serializer Write(int value) {
+			var s = GetSpan(4);
+			BinaryPrimitives.WriteInt32LittleEndian(s, value);
+			return this;
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public Serializer Write(uint value) {
+			var s = GetSpan(4);
+			BinaryPrimitives.WriteUInt32LittleEndian(s, value);
+			return this;
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public Serializer Write(long value) {
+			var s = GetSpan(8);
+			BinaryPrimitives.WriteInt64LittleEndian(s, value);
+			return this;
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public Serializer Write(ulong value) {
+			var s = GetSpan(8);
+			BinaryPrimitives.WriteUInt64LittleEndian(s, value);
+			return this;
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public Serializer Write(float value) {
+			// Avoid BitConverter allocations; encode via IEEE 754 bits then write int32 LE
+			return Write(unchecked((int)BitConverter.SingleToInt32Bits(value)));
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public Serializer Write(double value) {
+			// Encode via IEEE 754 bits then write int64 LE
+			return Write(unchecked((long)BitConverter.DoubleToInt64Bits(value)));
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public Serializer Write(decimal value) {
+			// Decimal.GetBits returns four ints (lo, mid, hi, flags). Persist as 16 bytes LE.
+			int[] bits = decimal.GetBits(value);
+			var s = GetSpan(16);
+			BinaryPrimitives.WriteInt32LittleEndian(s.Slice(0, 4),  bits[0]);
+			BinaryPrimitives.WriteInt32LittleEndian(s.Slice(4, 4),  bits[1]);
+			BinaryPrimitives.WriteInt32LittleEndian(s.Slice(8, 4),  bits[2]);
+			BinaryPrimitives.WriteInt32LittleEndian(s.Slice(12, 4), bits[3]);
+			return this;
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public Serializer Write(char value) {
+			// UTF-16 code unit, LE
+			return Write((ushort)value);
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public Serializer Write(bool value) {
+			// For structured bit-packing, prefer WriteFlag(). This exists for payload booleans.
+			return Write(value ? (byte)1 : (byte)0);
+		}
+
+		// When you need to dump raw bytes directly:
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public Serializer Write(ReadOnlySpan<byte> bytes) {
+			if (bytes.Length == 0) return this;
+			var s = GetSpan(bytes.Length);
+			bytes.CopyTo(s);
+			return this;
+		}
+
+		// --- pooled helpers ---
 
 		/// <summary>Get a Serializer from the pool (optionally with a capacity hint).</summary>
 		public static Serializer GetPooled(int capacityHint = 0) => SerializerPool.Get(capacityHint);
