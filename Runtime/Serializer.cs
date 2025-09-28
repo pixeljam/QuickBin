@@ -391,6 +391,23 @@ namespace QuickBin {
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public Serializer Write(string value, LengthWriter writeLen) => Write(value, System.Text.Encoding.UTF8, writeLen);
 
+		// Write any unmanaged struct in one bulk copy
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public unsafe Serializer WriteUnmanaged<T>(in T value) where T : unmanaged {
+			// Write the bytes of 'value' directly into dest
+			MemoryMarshal.Write(GetSpan(sizeof(T)), ref Unsafe.AsRef(value));
+			return this;
+		}
+
+		// Unmanaged array bulk write (no per-element calls)
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public unsafe Serializer WriteUnmanagedArray<T>(ReadOnlySpan<T> values, LengthWriter? writeLen = null) where T : unmanaged {
+			int bytes = values.Length * sizeof(T);
+			writeLen?.Invoke(this, bytes);
+			if (bytes == 0) return this;
+			return Write(MemoryMarshal.AsBytes(values));
+		}
+
 		// --- pooled helpers ---
 
 		/// <summary>Get a Serializer from the pool (optionally with a capacity hint).</summary>

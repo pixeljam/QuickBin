@@ -4,60 +4,29 @@ using System.Linq;
 
 namespace QuickBin {
 	public static partial class QuickBinExtensions {
-		public static Serializer Write(this Serializer buffer, Vector2 value) => buffer
-			.Write(value.x)
-			.Write(value.y);
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+    	public static Serializer Write(this Serializer buffer, Vector2 value) => buffer.WriteUnmanaged(value);
 		
-		public static Serializer Write(this Serializer buffer, Vector3 value) => buffer
-			.Write(value.x)
-			.Write(value.y)
-			.Write(value.z);
+		public static Serializer Write(this Serializer buffer, Vector3 value) => buffer.WriteUnmanaged(value);
 		
-		public static Serializer Write(this Serializer buffer, Vector4 value) => buffer
-			.Write(value.x)
-			.Write(value.y)
-			.Write(value.z)
-			.Write(value.w);
+		public static Serializer Write(this Serializer buffer, Vector4 value) => buffer.WriteUnmanaged(value);
 		
-		public static Serializer Write(this Serializer buffer, Vector2Int value) => buffer
-			.Write(value.x)
-			.Write(value.y);
+		public static Serializer Write(this Serializer buffer, Vector2Int value) => buffer.WriteUnmanaged(value);
 		
-		public static Serializer Write(this Serializer buffer, Vector3Int value) => buffer
-			.Write(value.x)
-			.Write(value.y)
-			.Write(value.z);
+		public static Serializer Write(this Serializer buffer, Vector3Int value) => buffer.WriteUnmanaged(value);
 
-		public static Serializer Write(this Serializer buffer, Quaternion value) => buffer
-			.Write(value.x)
-			.Write(value.y)
-			.Write(value.z)
-			.Write(value.w);
+		public static Serializer Write(this Serializer buffer, Quaternion value) => buffer.WriteUnmanaged(value);
 		
-		public static Serializer Write(this Serializer buffer, Color value) => buffer
-			.Write(value.r)
-			.Write(value.g)
-			.Write(value.b)
-			.Write(value.a);
+		public static Serializer Write(this Serializer buffer, Color value) => buffer.WriteUnmanaged(value);
 		
-		public static Serializer Write(this Serializer buffer, Color32 value) => buffer
-			.Write(value.r)
-			.Write(value.g)
-			.Write(value.b)
-			.Write(value.a);
+		public static Serializer Write(this Serializer buffer, Color32 value) => buffer.WriteUnmanaged(value);
 		
-		public static Serializer Write(this Serializer buffer, Rect value) => buffer
-			.Write(value.x)
-			.Write(value.y)
-			.Write(value.width)
-			.Write(value.height);
+		public static Serializer Write(this Serializer buffer, Rect value) => buffer.WriteUnmanaged(value);
 
-		public static Serializer Write(this Serializer buffer, RectInt value) => buffer
-			.Write(value.x)
-			.Write(value.y)
-			.Write(value.width)
-			.Write(value.height);
+		public static Serializer Write(this Serializer buffer, RectInt value) => buffer.WriteUnmanaged(value);
 		
+		public static Serializer Write(this Serializer buffer, Matrix4x4 value) => buffer.WriteUnmanaged(value);
+
 		public static Serializer Write(this Serializer buffer, Bounds value) => buffer
 			.Write(value.center)
 			.Write(value.size);
@@ -65,12 +34,6 @@ namespace QuickBin {
 		public static Serializer Write(this Serializer buffer, BoundsInt value) => buffer
 			.Write(value.center)
 			.Write(value.size);
-		
-		public static Serializer Write(this Serializer buffer, Matrix4x4 value) => buffer
-			.Write(value.GetColumn(0))
-			.Write(value.GetColumn(1))
-			.Write(value.GetColumn(2))
-			.Write(value.GetColumn(3));
 		
 		public static Serializer Write(this Serializer buffer, AnimationCurve value) => buffer
 			.Write(value.keys.Length)
