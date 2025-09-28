@@ -1,30 +1,31 @@
 using UnityEngine;
 using QuickBin.ChainExtensions;
 using System.Linq;
+using System.Runtime.CompilerServices;
 
 namespace QuickBin {
 	public static partial class QuickBinExtensions {
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
     	public static Serializer Write(this Serializer buffer, Vector2 value) => buffer.WriteUnmanaged(value);
-		
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static Serializer Write(this Serializer buffer, Vector3 value) => buffer.WriteUnmanaged(value);
-		
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static Serializer Write(this Serializer buffer, Vector4 value) => buffer.WriteUnmanaged(value);
-		
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static Serializer Write(this Serializer buffer, Vector2Int value) => buffer.WriteUnmanaged(value);
-		
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static Serializer Write(this Serializer buffer, Vector3Int value) => buffer.WriteUnmanaged(value);
-
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static Serializer Write(this Serializer buffer, Quaternion value) => buffer.WriteUnmanaged(value);
-		
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static Serializer Write(this Serializer buffer, Color value) => buffer.WriteUnmanaged(value);
-		
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static Serializer Write(this Serializer buffer, Color32 value) => buffer.WriteUnmanaged(value);
-		
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static Serializer Write(this Serializer buffer, Rect value) => buffer.WriteUnmanaged(value);
-
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static Serializer Write(this Serializer buffer, RectInt value) => buffer.WriteUnmanaged(value);
-		
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static Serializer Write(this Serializer buffer, Matrix4x4 value) => buffer.WriteUnmanaged(value);
 
 		public static Serializer Write(this Serializer buffer, Bounds value) => buffer
