@@ -83,7 +83,7 @@ namespace QuickBin {
 
 			var enc = encoding.GetEncoder();
 			var written = enc.GetBytes(value, dest[writer.dataSize..], true);
-			buffer.Length -= maxStringBytes - written;
+			buffer.length -= maxStringBytes - written;
 			
 			writer.write(dest, written);
 			return buffer;

@@ -18,7 +18,8 @@ namespace QuickBin {
 		
 		private byte[] _buffer;
 		/// <summary>The number of bytes in the Serializer.</summary>
-		public int Length { get; internal set; }
+		internal int length;
+		public int Length => length + (hasPendingFlagByte ? 1 : 0);
 
 		private byte flagAccumulator; // current byte being packed
 		private int  flagBitIndex; // 0..7 number of bits already packed (0 means none pending)
@@ -27,7 +28,7 @@ namespace QuickBin {
 		/// <summary>The bytes in the Serializer (enumerable view).</summary>
 		public IEnumerable<byte> Bytes {
 			get {
-				for (int i = 0; i < Length; i++) yield return _buffer[i];
+				for (int i = 0; i < length; i++) yield return _buffer[i];
 				if (hasPendingFlagByte) yield return flagAccumulator;
 			}
 		}
@@ -59,7 +60,7 @@ namespace QuickBin {
 			public Serializer(int capacity) {
 				if (capacity < 0) capacity = 0;
 				_buffer = capacity > 0 ? new byte[capacity] : Array.Empty<byte>();
-				Length = 0;
+				length = 0;
 				flagAccumulator = 0;
 				flagBitIndex = 0;
 			}
@@ -77,13 +78,13 @@ namespace QuickBin {
 			public byte[] ToArray() {
 				// We don't want to mutate the serializer by doing this, but we do want to treat anything left in the flag accumulator as valid data.
 				// We know we must have a free byte in which to put this unfinished flag byte, because we allocated when it was started.
-				var lengthWithTrailingFlags = Length;
+				var lengthWithTrailingFlags = length;
 				if (hasPendingFlagByte) lengthWithTrailingFlags++;
 				if (lengthWithTrailingFlags == 0) return Array.Empty<byte>();
 				
 				var arr = new byte[lengthWithTrailingFlags];
 				
-				Buffer.BlockCopy(_buffer, 0, arr, 0, Length);
+				Buffer.BlockCopy(_buffer, 0, arr, 0, length);
 				if (hasPendingFlagByte) arr[^1] = flagAccumulator;
 				
 				return arr;
@@ -93,7 +94,7 @@ namespace QuickBin {
 		#region Clearing
 			/// <summary>Clears written data and flag state; retains allocated buffer for reuse.</summary>
 			public Serializer Clear() {
-				Length = 0;
+				length = 0;
 				flagAccumulator = 0;
 				flagBitIndex = 0;
 				return this;
@@ -104,7 +105,7 @@ namespace QuickBin {
 		private void EnsureCapacity(int extraNeeded) {
 			if (extraNeeded < 0) throw new ArgumentOutOfRangeException(nameof(extraNeeded));
 			
-			int required = Length + extraNeeded;
+			int required = length + extraNeeded;
 			if (required <= _buffer.Length) return;
 			
 			int newCap = _buffer.Length == 0 ? 256 : _buffer.Length;
@@ -125,20 +126,20 @@ namespace QuickBin {
 			
 			FlushPendingFlagByte(); // make sure flag groups don't get interleaved
 			EnsureCapacity(size);
-			var span = _buffer.AsSpan(Length, size);
-			Length += size;
+			var span = _buffer.AsSpan(length, size);
+			length += size;
 			
 			return span;
 		}
 
 		/// <summary>Span over the already written region (mutable for patching).</summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private Span<byte> WrittenSpanMutable() => MemoryMarshal.CreateSpan(ref _buffer[0], Length);
+		private Span<byte> WrittenSpanMutable() => MemoryMarshal.CreateSpan(ref _buffer[0], length);
 
 		#region Flags
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			private void CommitFlagByte() {
-				_buffer[Length++] = flagAccumulator;
+				_buffer[length++] = flagAccumulator;
 				flagAccumulator = 0;
 				flagBitIndex = 0;
 			}
@@ -167,20 +168,32 @@ namespace QuickBin {
 		#endregion Flags
 
 		#region Length Patching
+			public ref struct ReservedLengthPrefixer {
+				public Span<byte> span;
+				internal int initialLength;
+				
+				public ReservedLengthPrefixer(Serializer serializer, int byteCount) {
+					span = serializer.AllocateSpan(byteCount);
+					initialLength = serializer.Length;
+				}
+				
+				readonly internal int GetLength(Serializer serializer) => serializer.Length - initialLength;
+			}
+			
 			/// <summary>Reserves a number of bytes to be patched over later.</summary>
-			public Span<byte> ReserveBytes(int byteCount) {
+			public ReservedLengthPrefixer ReserveBytes(int byteCount) {
 				FlushPendingFlagByte();
-				return AllocateSpan(byteCount);
+				return new(this, byteCount);
 			}
 
-			public void PatchU16LittleEndian(Span<byte> span, ushort value) {
-				if (span.Length < sizeof(ushort)) throw new IndexOutOfRangeException(nameof(span));
-				BinaryPrimitives.WriteUInt16LittleEndian(span, value);
+			public void PatchU16LittleEndian(ReservedLengthPrefixer reserved) {
+				if (reserved.span.Length < sizeof(ushort)) throw new IndexOutOfRangeException(nameof(reserved));
+				BinaryPrimitives.WriteUInt16LittleEndian(reserved.span, (ushort)reserved.GetLength(this));
 			}
 
-			public void PatchU32LittleEndian(Span<byte> span, uint value) {
-				if (span.Length < sizeof(uint)) throw new IndexOutOfRangeException(nameof(span));
-				BinaryPrimitives.WriteUInt32LittleEndian(span, value);
+			public void PatchU32LittleEndian(ReservedLengthPrefixer reserved) {
+				if (reserved.span.Length < sizeof(uint)) throw new IndexOutOfRangeException(nameof(reserved));
+				BinaryPrimitives.WriteUInt32LittleEndian(reserved.span, (uint)reserved.GetLength(this));
 			}
 		#endregion Length Patching
 
