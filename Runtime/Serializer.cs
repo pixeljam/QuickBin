@@ -43,7 +43,11 @@ namespace QuickBin {
 				this.dataSize = dataSize;
 			}
 		};
+		public static readonly LengthWriter Len_i64 = new(static (dest, len) => BinaryPrimitives.WriteInt64LittleEndian(dest, len), sizeof(long));
 		public static readonly LengthWriter Len_i32 = new(static (dest, len) => BinaryPrimitives.WriteInt32LittleEndian(dest, len), sizeof(int));
+		public static readonly LengthWriter Len_i16 = new(static (dest, len) => BinaryPrimitives.WriteInt16LittleEndian(dest, (short)len), sizeof(short));
+		public static readonly LengthWriter Len_i8 = new(static (dest, len) => dest[0] = (byte)(sbyte)len, sizeof(sbyte));
+		public static readonly LengthWriter Len_u64 = new(static (dest, len) => BinaryPrimitives.WriteUInt64LittleEndian(dest, (ulong)len), sizeof(ulong));
 		public static readonly LengthWriter Len_u32 = new(static (dest, len) => BinaryPrimitives.WriteUInt32LittleEndian(dest, (uint)len), sizeof(uint));
 		public static readonly LengthWriter Len_u16 = new(static (dest, len) => BinaryPrimitives.WriteUInt16LittleEndian(dest, (ushort)len), sizeof(ushort));
 		public static readonly LengthWriter Len_u8 = new(static (dest, len) => dest[0] = (byte)len, sizeof(byte));
