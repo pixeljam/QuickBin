@@ -14,431 +14,381 @@ namespace QuickBin {
 	/// - Supports reserving & patching previously written lengths
 	/// </summary>
 	public sealed class Serializer : IEnumerable<byte> {
-		// --- backing store ---
-		byte[] _buffer;
-		int _count;
+		private const int MIBIBYTE = 1024 * 1024;
+		private const int MAX_STRING_CHUNK_SIZE = 4096;
+		private readonly byte[] _buffer;
+		/// <summary>The number of bytes in the Serializer.</summary>
+		public int Length { get; private set; }
 
-		// --- flag packing state (for WriteFlag) ---
-		byte _flagAccumulator;   // current byte being packed
-		int  _flagBitIndex;      // 0..7 number of bits already packed (0 means none pending)
-		bool _hasPendingFlagByte;
-
-		// --- public compatibility API ---
+		private byte flagAccumulator; // current byte being packed
+		private int  flagBitIndex; // 0..7 number of bits already packed (0 means none pending)
+		private bool hasPendingFlagByte => flagBitIndex > 0;
 
 		/// <summary>The bytes in the Serializer (enumerable view).</summary>
 		public IEnumerable<byte> Bytes {
 			get {
-				for (int i = 0; i < _count; i++) yield return _buffer[i];
+				for (int i = 0; i < Length; i++) yield return _buffer[i];
+				if (hasPendingFlagByte) yield return flagAccumulator;
 			}
 		}
+		
+		public sealed record LengthWriter(Action<Span<byte>, int> write, int dataSize) {};
+		public static readonly LengthWriter Len_i32 = (BinaryPrimitives.WriteInt32LittleEndian, sizeof(int));
+		public static readonly LengthWriter Len_u32 = (BinaryPrimitives.WriteUInt32LittleEndian, sizeof(uint));
+		public static readonly LengthWriter Len_u16 = (BinaryPrimitives.WriteUInt16LittleEndian, sizeof(ushort));
+		public static readonly LengthWriter Len_u8 = (BinaryPrimitives.WriteUInt8LittleEndian, sizeof(byte));
 
-		/// <summary>The number of bytes in the Serializer.</summary>
-		public int Length => _count;
 
-		/// <summary>
-		/// Back-compat helper for rare debugging (e.g., ConvertToHexadecimal()).
-		/// Creates a fresh List with the current contents.
-		/// </summary>
-		public List<byte> buffer => new List<byte>(_buffer.AsSpan(0, _count).ToArray());
+		#region Constructors
+			public Serializer() : this(0) { }
 
-		/// <summary>Implicitly materialize the written bytes.</summary>
-		public static implicit operator byte[](Serializer s) => s.ToArray();
+			/// <param name="capacity">Initial capacity hint in bytes.</param>
+			public Serializer(int capacity) {
+				if (capacity < 0) capacity = 0;
+				_buffer = capacity > 0 ? new byte[capacity] : Array.Empty<byte>();
+				Length = 0;
+				flagAccumulator = 0;
+				flagBitIndex = 0;
+			}
+		#endregion Constructors
 
-		// --- construction / lifetime ---
+		#region Enumerable
+			public IEnumerator<byte> GetEnumerator() => Bytes;
+			private IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+		#endregion Enumerable
 
-		public Serializer() : this(0) { }
-
-		/// <param name="capacity">Initial capacity hint in bytes.</param>
-		public Serializer(int capacity) {
-			if (capacity < 0) capacity = 0;
-			_buffer = capacity > 0 ? new byte[capacity] : Array.Empty<byte>();
-			_count = 0;
-			_flagAccumulator = 0;
-			_flagBitIndex = 0;
-			_hasPendingFlagByte = false;
-		}
-
-		/// <summary>Clears written data and flag state; retains allocated buffer for reuse.</summary>
-		public Serializer Clear() {
-			_count = 0;
-			_flagAccumulator = 0;
-			_flagBitIndex = 0;
-			_hasPendingFlagByte = false;
-			return this;
-		}
-
-		/// <summary>Copies written bytes into a compact array.</summary>
-		public byte[] ToArray() {
-			FlushPendingFlagByte();
-			if (_count == 0) return Array.Empty<byte>();
-			var arr = new byte[_count];
-			Buffer.BlockCopy(_buffer, 0, arr, 0, _count);
-			return arr;
-		}
-
-		// --- IEnumerable<byte> ---
-
-		public IEnumerator<byte> GetEnumerator() {
-			for (int i = 0; i < _count; i++) yield return _buffer[i];
-		}
-		IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-
-		// --- internal core (used by QuickBinExtensions) ---
+		#region Array casting
+			/// <summary>Implicitly materialize the written bytes.</summary>
+			public static implicit operator byte[](Serializer s) => s.ToArray();
+			/// <summary>Copies written bytes into a compact array.</summary>
+			public byte[] ToArray() {
+				// We don't want to mutate the serializer by doing this, but we do want to treat anything left in the flag accumulator as valid data.
+				// We know we must have a free byte in which to put this unfinished flag byte, because we allocated when it was started.
+				var lengthWithTrailingFlags = Length;
+				if (hasPendingFlagByte) lengthWithTrailingFlags++;
+				if (lengthWithTrailingFlags == 0) return Array.Empty<byte>();
+				
+				var arr = new byte[lengthWithTrailingFlags];
+				
+				Buffer.BlockCopy(_buffer, 0, arr, 0, Length);
+				if (hasPendingFlagByte) arr[^1] = flagAccumulator;
+				
+				return arr;
+			}
+		#endregion Array casting
+		
+		#region Clearing
+			/// <summary>Clears written data and flag state; retains allocated buffer for reuse.</summary>
+			public Serializer Clear() {
+				Length = 0;
+				flagAccumulator = 0;
+				flagBitIndex = 0;
+				return this;
+			}
+		#endregion Clearing
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		void EnsureCapacity(int extraNeeded) {
+		private void EnsureCapacity(int extraNeeded) {
 			if (extraNeeded < 0) throw new ArgumentOutOfRangeException(nameof(extraNeeded));
-			int required = _count + extraNeeded;
+			
+			int required = Length + extraNeeded;
 			if (required <= _buffer.Length) return;
+			
 			int newCap = _buffer.Length == 0 ? 256 : _buffer.Length;
-			while (newCap < required) newCap = newCap < 1024 * 1024 ? newCap * 2 : newCap + (1024 * 1024); // exponential then linear
+			while (newCap < required) {
+				newCap = newCap < MIBIBYTE
+					? newCap << 1 // Exponentially double
+					: newCap + MIBIBYTE; // Linearly add mibibytes
+			}
+			
 			Array.Resize(ref _buffer, newCap);
 		}
 
 		/// <summary>Returns a writable span of requested size at the current end, advancing Count.</summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		Span<byte> GetSpan(int size) {
+		private Span<byte> AllocateSpan(int size) {
 			if (size < 0) throw new ArgumentOutOfRangeException(nameof(size));
 			if (size == 0) return Span<byte>.Empty;
-			FlushPendingFlagByteIfForeignWrite(); // make sure flag groups don't get interleaved
+			
+			FlushPendingFlagByte(); // make sure flag groups don't get interleaved
 			EnsureCapacity(size);
-			var span = _buffer.AsSpan(_count, size);
-			_count += size;
+			var span = _buffer.AsSpan(Length, size);
+			Length += size;
+			
 			return span;
 		}
 
 		/// <summary>Span over the already written region (mutable for patching).</summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		Span<byte> WrittenSpanMutable() => MemoryMarshal.CreateSpan(ref _buffer[0], _count);
+		private Span<byte> WrittenSpanMutable() => MemoryMarshal.CreateSpan(ref _buffer[0], Length);
 
-		/// <summary>
-		/// Generic writer for fixed-size primitives via a ByteWriter delegate (uses a pre-sized span).
-		/// </summary>
-		internal Serializer WriteGeneric<T>(int size, T value, ByteWriter<T> f) {
-			var dest = GetSpan(size);
-			f(dest, value);
-			// any non-flag write breaks flag packing: handled by GetSpan() call above
-			return this;
-		}
-
-		/// <summary>
-		/// Single-byte writer via a small converter (no stackalloc, no delegates in hot path).
-		/// </summary>
-		internal Serializer WriteGeneric<T>(T value, Func<T, byte> f) {
-			var dest = GetSpan(1);
-			dest[0] = f(value);
-			return this;
-		}
-
-		/// <summary>Bulk copy of arbitrary byte data.</summary>
-		internal Serializer WriteGeneric(ReadOnlySpan<byte> value) {
-			if (value.Length == 0) return this;
-			var dest = GetSpan(value.Length);
-			value.CopyTo(dest);
-			return this;
-		}
-
-		// --- flag packing ---
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		void CommitFlagByte() {
-			EnsureCapacity(1);
-			_buffer[_count++] = _flagAccumulator;
-			_hasPendingFlagByte = false;
-			_flagAccumulator = 0;
-			_flagBitIndex = 0;
-		}
-
-		/// <summary>
-		/// Packs booleans into a single byte (up to 8 per byte). Set <paramref name="forceNewByte"/> to start a new flag group.
-		/// </summary>
-		public Serializer WriteFlag(bool value, bool forceNewByte = false) {
-			if (forceNewByte) FlushPendingFlagByte(true);
-
-			if (!_hasPendingFlagByte) {
-				_flagAccumulator = 0;
-				_flagBitIndex = 0;
-				_hasPendingFlagByte = true;
+		#region Flags
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			private void CommitFlagByte() {
+				_buffer[Length++] = flagAccumulator;
+				flagAccumulator = 0;
+				flagBitIndex = 0;
 			}
 
-			if (value) _flagAccumulator |= (byte)(1 << _flagBitIndex);
+			/// <summary>Flushes a partially filled flag byte into the buffer (if any).</summary>
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			private void FlushPendingFlagByte(bool force = false) {
+				if (hasPendingFlagByte && (flagBitIndex > 0 || force))
+					CommitFlagByte();
+			}
 
-			_flagBitIndex++;
-			if (_flagBitIndex >= 8) CommitFlagByte();
+			/// <summary>
+			/// Packs booleans into a single byte (up to 8 per byte). Set <paramref name="forceNewByte"/> to start a new flag group.
+			/// </summary>
+			public Serializer WriteFlag(bool value, bool forceNewByte = false) {
+				if (forceNewByte) FlushPendingFlagByte(true);
 
-			return this;
-		}
+				if (!hasPendingFlagByte) EnsureCapacity(1);
 
-		/// <summary>Flushes a partially filled flag byte into the buffer (if any).</summary>
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		void FlushPendingFlagByte(bool force = false) {
-			if (_hasPendingFlagByte && (_flagBitIndex > 0 || force))
-				CommitFlagByte();
-		}
+				if (value) flagAccumulator |= (byte)(1 << flagBitIndex);
+				flagBitIndex++;
+				if (flagBitIndex >= 8) CommitFlagByte();
 
-		/// <summary>
-		/// Called before any non-flag write to ensure we don't interleave raw data into a pending flag group.
-		/// </summary>
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		void FlushPendingFlagByteIfForeignWrite() => FlushPendingFlagByte();
-
-		// --- reserve & patch helpers (useful for length-prefixed blobs) ---
-
-		/// <summary>Reserve two bytes (u16 LE) and return absolute position to patch later.</summary>
-		public int ReserveU16LittleEndian() {
-			FlushPendingFlagByteIfForeignWrite();
-			int pos = _count;
-			var s = GetSpan(2);
-			s[0] = 0; s[1] = 0;
-			return pos;
-		}
-
-		/// <summary>Reserve four bytes (u32 LE) and return absolute position to patch later.</summary>
-		public int ReserveU32LittleEndian() {
-			FlushPendingFlagByteIfForeignWrite();
-			int pos = _count;
-			var s = GetSpan(4);
-			s[0] = s[1] = s[2] = s[3] = 0;
-			return pos;
-		}
-
-		public void PatchU16LittleEndian(int absolutePos, ushort value) {
-			if ((uint)absolutePos > (uint)(_count - 2)) throw new ArgumentOutOfRangeException(nameof(absolutePos));
-			var whole = WrittenSpanMutable();
-			BinaryPrimitives.WriteUInt16LittleEndian(whole.Slice(absolutePos, 2), value);
-		}
-
-		public void PatchU32LittleEndian(int absolutePos, uint value) {
-			if ((uint)absolutePos > (uint)(_count - 4)) throw new ArgumentOutOfRangeException(nameof(absolutePos));
-			var whole = WrittenSpanMutable();
-			BinaryPrimitives.WriteUInt32LittleEndian(whole.Slice(absolutePos, 4), value);
-		}
-
-		// --- Primitive writers ---
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public Serializer Write(byte value) {
-			var s = GetSpan(1);
-			s[0] = value;
-			return this;
-		}
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public Serializer Write(sbyte value) {
-			var s = GetSpan(1);
-			s[0] = unchecked((byte)value);
-			return this;
-		}
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public Serializer Write(short value) {
-			var s = GetSpan(2);
-			BinaryPrimitives.WriteInt16LittleEndian(s, value);
-			return this;
-		}
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public Serializer Write(ushort value) {
-			var s = GetSpan(2);
-			BinaryPrimitives.WriteUInt16LittleEndian(s, value);
-			return this;
-		}
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public Serializer Write(int value) {
-			var s = GetSpan(4);
-			BinaryPrimitives.WriteInt32LittleEndian(s, value);
-			return this;
-		}
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public Serializer Write(uint value) {
-			var s = GetSpan(4);
-			BinaryPrimitives.WriteUInt32LittleEndian(s, value);
-			return this;
-		}
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public Serializer Write(long value) {
-			var s = GetSpan(8);
-			BinaryPrimitives.WriteInt64LittleEndian(s, value);
-			return this;
-		}
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public Serializer Write(ulong value) {
-			var s = GetSpan(8);
-			BinaryPrimitives.WriteUInt64LittleEndian(s, value);
-			return this;
-		}
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public Serializer Write(float value) {
-			// Avoid BitConverter allocations; encode via IEEE 754 bits then write int32 LE
-			return Write(unchecked((int)BitConverter.SingleToInt32Bits(value)));
-		}
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public Serializer Write(double value) {
-			// Encode via IEEE 754 bits then write int64 LE
-			return Write(unchecked((long)BitConverter.DoubleToInt64Bits(value)));
-		}
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public Serializer Write(decimal value) {
-			// Decimal.GetBits returns four ints (lo, mid, hi, flags). Persist as 16 bytes LE.
-			int[] bits = decimal.GetBits(value);
-			var s = GetSpan(16);
-			BinaryPrimitives.WriteInt32LittleEndian(s.Slice(0, 4),  bits[0]);
-			BinaryPrimitives.WriteInt32LittleEndian(s.Slice(4, 4),  bits[1]);
-			BinaryPrimitives.WriteInt32LittleEndian(s.Slice(8, 4),  bits[2]);
-			BinaryPrimitives.WriteInt32LittleEndian(s.Slice(12, 4), bits[3]);
-			return this;
-		}
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public Serializer Write(char value) {
-			// UTF-16 code unit, LE
-			return Write((ushort)value);
-		}
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public Serializer Write(bool value) {
-			// For structured bit-packing, prefer WriteFlag(). This exists for payload booleans.
-			return Write(value ? (byte)1 : (byte)0);
-		}
-
-		// When you need to dump raw bytes directly:
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public Serializer Write(ReadOnlySpan<byte> bytes) {
-			if (bytes.Length == 0) return this;
-			var s = GetSpan(bytes.Length);
-			bytes.CopyTo(s);
-			return this;
-		}
-
-		public Serializer Write(DateTime value) => Write(value.Ticks);
-		public Serializer Write(TimeSpan value) => Write(value.Ticks);
-		public Serializer Write(Version value) => Write(value.Major).Write(value.Minor).Write(value.Build).Write(value.Revision);
-
-		// ================= Length prefix helpers =================
-
-		public delegate void LengthWriter(Serializer buffer, int length);
-
-		// Common length encoders (match your old names/usages)
-		public static readonly LengthWriter Len_i32 = static (b, len) => b.Write(len);
-		public static readonly LengthWriter Len_u32 = static (b, len) => b.Write((uint)len);
-		public static readonly LengthWriter Len_u16 = static (b, len) => b.Write((ushort)len);
-		public static readonly LengthWriter Len_u8 = static (b, len) => b.Write((byte)len);
-
-		// -------- length-prefixed writers --------
-
-		// byte[] with length prefix
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public Serializer Write(byte[] value, LengthWriter writeLen) {
-			if (value == null) { writeLen(this, 0); return this; }
-			writeLen(this, value.Length);
-			return Write((ReadOnlySpan<byte>)value);
-		}
-
-		// ReadOnlySpan<byte> with length prefix
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public Serializer Write(ReadOnlySpan<byte> value, LengthWriter writeLen) {
-			writeLen(this, value.Length);
-			return Write(value);
-		}
-
-		// string with explicit encoding + length prefix
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public Serializer Write(string value, System.Text.Encoding encoding, LengthWriter writeLen) {
-			if (string.IsNullOrEmpty(value)) {
-				writeLen(this, 0);
 				return this;
 			}
-			// Write the byte count first (no allocation)
-			int byteCount = encoding.GetByteCount(value);
-			writeLen(this, byteCount);
+		#endregion Flags
 
-			// Stream the bytes without temp arrays (uses Encoder + chunks)
-			var enc = encoding.GetEncoder();
-			int charIndex = 0;
-			var chars = value.AsSpan();
-			while (charIndex < chars.Length) {
-				// Pick a chunk size; we just need to ensure the span fits
-				// If you want: compute remaining bytes and request exactly that.
-				int chunkBytes = Math.Min(byteCount, 4096);
-				var dest = GetSpan(chunkBytes);
-
-				enc.Convert(
-					chars.Slice(charIndex),
-					dest,
-					flush: charIndex + 1024 >= chars.Length, // flush near the end
-					out int charsUsed,
-					out int bytesUsed,
-					out bool completed
-				);
-
-				// We may have requested more than needed; rewind any unused tail
-				_count -= (chunkBytes - bytesUsed);
-
-				charIndex += charsUsed;
-				if (completed && charIndex >= chars.Length) break;
+		#region Endian
+			/// <summary>Reserve two bytes (u16 LE) and return absolute position to patch later.</summary>
+			public int ReserveU16LittleEndian() {
+				FlushPendingFlagByte();
+				int pos = Length;
+				var s = AllocateSpan(2);
+				s[0] = 0; s[1] = 0;
+				return pos;
 			}
-			return this;
-		}
 
-		// string (UTF-8) with length prefix convenience
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public Serializer Write(string value, LengthWriter writeLen) => Write(value, System.Text.Encoding.UTF8, writeLen);
+			/// <summary>Reserve four bytes (u32 LE) and return absolute position to patch later.</summary>
+			public int ReserveU32LittleEndian() {
+				FlushPendingFlagByte();
+				int pos = Length;
+				var s = AllocateSpan(4);
+				s[0] = s[1] = s[2] = s[3] = 0;
+				return pos;
+			}
 
-		// Write any unmanaged struct in one bulk copy
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public unsafe Serializer WriteUnmanaged<T>(in T value) where T : unmanaged {
-			// Write the bytes of 'value' directly into dest
-			MemoryMarshal.Write(GetSpan(sizeof(T)), ref Unsafe.AsRef(value));
-			return this;
-		}
+			public void PatchU16LittleEndian(int absolutePos, ushort value) {
+				if ((uint)absolutePos > (uint)(Length - 2)) throw new ArgumentOutOfRangeException(nameof(absolutePos));
+				var whole = WrittenSpanMutable();
+				BinaryPrimitives.WriteUInt16LittleEndian(whole.Slice(absolutePos, 2), value);
+			}
 
-		// Unmanaged array bulk write (no per-element calls)
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public unsafe Serializer WriteUnmanagedArray<T>(ReadOnlySpan<T> values, LengthWriter? writeLen = null) where T : unmanaged {
-			int bytes = values.Length * sizeof(T);
-			writeLen?.Invoke(this, bytes);
-			if (bytes == 0) return this;
-			return Write(MemoryMarshal.AsBytes(values));
-		}
+			public void PatchU32LittleEndian(int absolutePos, uint value) {
+				if ((uint)absolutePos > (uint)(Length - 4)) throw new ArgumentOutOfRangeException(nameof(absolutePos));
+				var whole = WrittenSpanMutable();
+				BinaryPrimitives.WriteUInt32LittleEndian(whole.Slice(absolutePos, 4), value);
+			}
+		#endregion Endian
 
-		// --- pooled helpers ---
+		#region Writers
+			/// <summary>Generic writer for fixed-size primitives via a ByteWriter delegate (uses a pre-sized span).</summary>
+			internal Serializer WriteGeneric<T>(int size, T value, ByteWriter<T> f) {
+				var dest = AllocateSpan(size);
+				f(dest, value);
+				// any non-flag write breaks flag packing: handled by GetSpan() call above
+				return this;
+			}
 
-		/// <summary>Get a Serializer from the pool (optionally with a capacity hint).</summary>
-		public static Serializer GetPooled(int capacityHint = 0) => SerializerPool.Get(capacityHint);
+			/// <summary>Single-byte writer via a small converter (no stackalloc, no delegates in hot path).</summary>
+			internal Serializer WriteGeneric<T>(T value, Func<T, byte> f) {
+				var dest = AllocateSpan(1);
+				dest[0] = f(value);
+				return this;
+			}
 
-		/// <summary>Materialize to byte[] and return the Serializer to the pool.</summary>
-		public byte[] ToArrayAndReturn() => SerializerPool.ToArrayAndReturn(this);
-	}
+			/// <summary>Bulk copy of arbitrary byte data.</summary>
+			internal Serializer WriteGeneric(ReadOnlySpan<byte> value) {
+				if (value.Length == 0) return this;
+				var dest = GetSpan(value.Length);
+				value.CopyTo(dest);
+				return this;
+			}
 
-	/// <summary>Very small, thread-unsafe pool; use from main thread in your capture loop.</summary>
-	static class SerializerPool {
-		static readonly Stack<Serializer> _pool = new();
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public Serializer Write(byte value) {
+				var s = AllocateSpan(sizeof(byte));
+				s[0] = value;
+				return this;
+			}
 
-		public static Serializer Get(int capacityHint = 0) {
-			if (_pool.Count > 0) {
-				var s = _pool.Pop();
-				s.Clear();
-				// opportunistic grow if we know we're about to write a lot
-				if (capacityHint > 0) {
-					// EnsureCapacity is internal; do a cheap reserve by writing/rewinding
-					// We avoid touching internals: just return; growth will happen lazily.
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public Serializer Write(sbyte value) {
+				var s = AllocateSpan(sizeof(sbyte));
+				s[0] = unchecked((byte)value);
+				return this;
+			}
+
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public Serializer Write(short value) {
+				var s = AllocateSpan(sizeof(short));
+				BinaryPrimitives.WriteInt16LittleEndian(s, value);
+				return this;
+			}
+
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public Serializer Write(ushort value) {
+				var s = AllocateSpan(sizeof(ushort));
+				BinaryPrimitives.WriteUInt16LittleEndian(s, value);
+				return this;
+			}
+
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public Serializer Write(int value) {
+				var s = AllocateSpan(sizeof(int));
+				BinaryPrimitives.WriteInt32LittleEndian(s, value);
+				return this;
+			}
+
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public Serializer Write(uint value) {
+				var s = AllocateSpan(sizeof(uint));
+				BinaryPrimitives.WriteUInt32LittleEndian(s, value);
+				return this;
+			}
+
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public Serializer Write(long value) {
+				var s = AllocateSpan(sizeof(long));
+				BinaryPrimitives.WriteInt64LittleEndian(s, value);
+				return this;
+			}
+
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public Serializer Write(ulong value) {
+				var s = AllocateSpan(sizeof(ulong));
+				BinaryPrimitives.WriteUInt64LittleEndian(s, value);
+				return this;
+			}
+
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public Serializer Write(float value) => Write(unchecked((int)BitConverter.SingleToInt32Bits(value)));
+			
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public Serializer Write(double value) => Write(unchecked((long)BitConverter.DoubleToInt64Bits(value)));
+
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public Serializer Write(decimal value) {
+				// Decimal.GetBits returns four ints (lo, mid, hi, flags). Persist as 16 bytes LE.
+				int[] bits = decimal.GetBits(value);
+				var s = AllocateSpan(sizeof(decimal));
+				BinaryPrimitives.WriteInt32LittleEndian(s.Slice(0, 4),  bits[0]);
+				BinaryPrimitives.WriteInt32LittleEndian(s.Slice(4, 4),  bits[1]);
+				BinaryPrimitives.WriteInt32LittleEndian(s.Slice(8, 4),  bits[2]);
+				BinaryPrimitives.WriteInt32LittleEndian(s.Slice(12, 4), bits[3]);
+				return this;
+			}
+			
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public Serializer Write(char value) => Write((ushort)value); // UTF-16 code unit, LE
+
+			// For structured bit-packing, prefer WriteFlag().
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public Serializer Write(bool value) => Write(value ? (byte)1 : (byte)0);
+			
+			/// <summary>Directly appends a span of bytes into the Serializer verbatim.</summary>
+			/// <remarks>This overload does not write the number of bytes in the span into the serializer.</remarks>
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public Serializer Write(ReadOnlySpan<byte> bytes) {
+				if (bytes.Length == 0) return this;
+				var s = GetSpan(bytes.Length);
+				bytes.CopyTo(s);
+				return this;
+			}
+
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public Serializer Write(DateTime value) => Write(value.Ticks);
+
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public Serializer Write(TimeSpan value) => Write(value.Ticks);
+
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public Serializer Write(Version value) => Write(value.Major).Write(value.Minor).Write(value.Build).Write(value.Revision);
+
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public Serializer Write(ReadOnlySpan<byte> value, LengthWriter writer) {
+				var dest = AllocateSpan(value.Length + writer.dataSize);
+				writer.write(dest, value.Length);
+				value.CopyTo(dest[writer.dataSize..]);
+				return this;
+			}
+
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public Serializer Write(string value, Encoding encoding, LengthWriter writer) {
+				if (string.IsNullOrEmpty(value)) {
+					writer.write(AllocateSpan(writer.dataSize), 0);
+					return this;
 				}
-				return s;
-			}
-			return new Serializer(capacityHint);
-		}
+				
+				var maxStringBytes = encoding.GetMaxByteCount(value);
+				var dest = AllocateSpan(maxStringBytes + writer.dataSize);
 
-		public static byte[] ToArrayAndReturn(Serializer s) {
-			var arr = s.ToArray();
-			_pool.Push(s);
-			return arr;
-		}
+				var enc = encoding.GetEncoder();
+				var written = enc.GetBytes(value, dest[lengthPrefixerSize..], true);
+				Length -= maxStringBytes - written;
+				
+				writer.write(dest, written);
+				return this;
+			}
+
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public Serializer Write(string value, LengthWriter writeLen) => Write(value, Encoding.UTF8, writeLen);
+
+			// Write any unmanaged struct in one bulk copy
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public unsafe Serializer WriteUnmanaged<T>(in T value) where T : unmanaged {
+				// Write the bytes of 'value' directly into dest
+				MemoryMarshal.Write(AllocateSpan(sizeof(T)), ref Unsafe.AsRef(value));
+				return this;
+			}
+
+			// Unmanaged array bulk write (no per-element calls)
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public unsafe Serializer WriteUnmanagedArray<T>(ReadOnlySpan<T> values, LengthWriter? writeLen = null) where T : unmanaged {
+				int bytes = values.Length * sizeof(T);
+				writeLen?.Invoke(this, bytes);
+				if (bytes == 0) return this;
+				return Write(MemoryMarshal.AsBytes(values));
+			}
+		#endregion Writers
+
+		#region Pooling
+			/// <summary>Get a Serializer from the pool (optionally with a capacity hint).</summary>
+			public static Serializer GetPooled(int capacityHint = 0) => SerializerPool.Get(capacityHint);
+
+			/// <summary>Materialize to byte[] and return the Serializer to the pool.</summary>
+			public byte[] ToArrayAndReturn() => SerializerPool.ToArrayAndReturn(this);
+		#endregion Pooling
 	}
+
+	#region Pool
+		/// <summary>Very small, thread-unsafe pool; use from main thread in your capture loop.</summary>
+		public static class SerializerPool {
+			private static readonly Stack<Serializer> _pool = new();
+
+			public static Serializer Get(int capacityHint = 0) {
+				if (_pool.Count > 0) {
+					var s = _pool.Pop();
+					s.Clear();
+					// opportunistic grow if we know we're about to write a lot
+					if (capacityHint > 0) {
+						// EnsureCapacity is internal; do a cheap reserve by writing/rewinding
+						// We avoid touching internals: just return; growth will happen lazily.
+					}
+					return s;
+				}
+				return new(capacityHint);
+			}
+
+			public static byte[] ToArrayAndReturn(Serializer s) {
+				var arr = s.ToArray();
+				_pool.Push(s);
+				return arr;
+			}
+		}
+	#endregion Pool
 }
