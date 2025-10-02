@@ -33,20 +33,20 @@ namespace QuickBin {
 			}
 		}
 		
-		public delegate void WriteAction<T>(Span<byte> dest, T length);
-		public sealed class LengthWriter<T> {
-			public WriteAction<T> write;
+		public delegate void WriteAction(Span<byte> dest, int length);
+		public sealed class LengthWriter {
+			public WriteAction write;
 			public int dataSize;
 			
-			public LengthWriter(WriteAction<T> write, int dataSize) {
+			public LengthWriter(WriteAction write, int dataSize) {
 				this.write = write;
 				this.dataSize = dataSize;
 			}
 		};
-		public static readonly LengthWriter<int> Len_i32 = new(BinaryPrimitives.WriteInt32LittleEndian, sizeof(int));
-		public static readonly LengthWriter<uint> Len_u32 = new(BinaryPrimitives.WriteUInt32LittleEndian, sizeof(uint));
-		public static readonly LengthWriter<ushort> Len_u16 = new(BinaryPrimitives.WriteUInt16LittleEndian, sizeof(ushort));
-		public static readonly LengthWriter<byte> Len_u8 = new(static (dest, len) => dest[0] = len, sizeof(byte));
+		public static readonly LengthWriter Len_i32 = new(static (dest, len) => BinaryPrimitives.WriteInt32LittleEndian(dest, len), sizeof(int));
+		public static readonly LengthWriter Len_u32 = new(static (dest, len) => BinaryPrimitives.WriteUInt32LittleEndian(dest, (uint)len), sizeof(uint));
+		public static readonly LengthWriter Len_u16 = new(static (dest, len) => BinaryPrimitives.WriteUInt16LittleEndian(dest, (ushort)len), sizeof(ushort));
+		public static readonly LengthWriter Len_u8 = new(static (dest, len) => dest[0] = len, sizeof(byte));
 
 
 		#region Constructors
