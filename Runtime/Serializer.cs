@@ -166,37 +166,23 @@ namespace QuickBin {
 			}
 		#endregion Flags
 
-		#region Endian
-			/// <summary>Reserve two bytes (u16 LE) and return absolute position to patch later.</summary>
-			public int ReserveU16LittleEndian() {
+		#region Length Patching
+			/// <summary>Reserves a number of bytes to be patched over later.</summary>
+			public Span<byte> ReserveBytes(int byteCount) {
 				FlushPendingFlagByte();
-				int pos = Length;
-				var s = AllocateSpan(2);
-				s[0] = 0; s[1] = 0;
-				return pos;
+				return AllocateSpan(byteCount);
 			}
 
-			/// <summary>Reserve four bytes (u32 LE) and return absolute position to patch later.</summary>
-			public int ReserveU32LittleEndian() {
-				FlushPendingFlagByte();
-				int pos = Length;
-				var s = AllocateSpan(4);
-				s[0] = s[1] = s[2] = s[3] = 0;
-				return pos;
+			public void PatchU16LittleEndian(Span<byte> span, ushort value) {
+				if (span.Length < sizeof(ushort)) throw new IndexOutOfRangeException(nameof(span));
+				BinaryPrimitives.WriteUInt16LittleEndian(span, value);
 			}
 
-			public void PatchU16LittleEndian(int absolutePos, ushort value) {
-				if ((uint)absolutePos > (uint)(Length - 2)) throw new ArgumentOutOfRangeException(nameof(absolutePos));
-				var whole = WrittenSpanMutable();
-				BinaryPrimitives.WriteUInt16LittleEndian(whole.Slice(absolutePos, 2), value);
+			public void PatchU32LittleEndian(Span<byte> span, uint value) {
+				if (span.Length < sizeof(uint)) throw new IndexOutOfRangeException(nameof(span));
+				BinaryPrimitives.WriteUInt32LittleEndian(span, value);
 			}
-
-			public void PatchU32LittleEndian(int absolutePos, uint value) {
-				if ((uint)absolutePos > (uint)(Length - 4)) throw new ArgumentOutOfRangeException(nameof(absolutePos));
-				var whole = WrittenSpanMutable();
-				BinaryPrimitives.WriteUInt32LittleEndian(whole.Slice(absolutePos, 4), value);
-			}
-		#endregion Endian
+		#endregion Length Patching
 
 		#region Writers
 			/// <summary>Generic writer for fixed-size primitives via a ByteWriter delegate (uses a pre-sized span).</summary>

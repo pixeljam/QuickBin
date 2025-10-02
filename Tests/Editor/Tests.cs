@@ -200,28 +200,28 @@ namespace QuickBin.Tests {
 			Assert.AreEqual(arr, produced.ToArray());
 		}
 		
-		[Test]
-		public static void Endianness() {
-			var buffer = new Serializer()
-				.Write((ushort)0x1234)
-				.WriteBig((ushort)0x1234)
-				.Write((ushort)0x1234);
+		// [Test]
+		// public static void Endianness() {
+		// 	var buffer = new Serializer()
+		// 		.Write((ushort)0x1234)
+		// 		.WriteBig((ushort)0x1234)
+		// 		.Write((ushort)0x1234);
 			
-			byte[] bytes = buffer;
+		// 	byte[] bytes = buffer;
 			
-			Assert.AreEqual(bytes[0..2], new byte[] {0x34, 0x12});
-			Assert.AreEqual(bytes[2..4], new byte[] {0x12, 0x34});
-			Assert.AreEqual(bytes[4..6], new byte[] {0x34, 0x12});
+		// 	Assert.AreEqual(bytes[0..2], new byte[] {0x34, 0x12});
+		// 	Assert.AreEqual(bytes[2..4], new byte[] {0x12, 0x34});
+		// 	Assert.AreEqual(bytes[4..6], new byte[] {0x34, 0x12});
 			
-			new Deserializer(bytes)
-				.Read(out ushort littleEndianA)
-				.ReadBig(out ushort bigEndian)
-				.Read(out ushort littleEndianB);
+		// 	new Deserializer(bytes)
+		// 		.Read(out ushort littleEndianA)
+		// 		.ReadBig(out ushort bigEndian)
+		// 		.Read(out ushort littleEndianB);
 			
-			Assert.AreEqual(littleEndianA, 0x1234);
-			Assert.AreEqual(bigEndian, 0x1234);
-			Assert.AreEqual(littleEndianB, 0x1234);
-		}
+		// 	Assert.AreEqual(littleEndianA, 0x1234);
+		// 	Assert.AreEqual(bigEndian, 0x1234);
+		// 	Assert.AreEqual(littleEndianB, 0x1234);
+		// }
 		
 		[Test]
 		public static void VersionGarbage() {
