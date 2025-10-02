@@ -350,9 +350,9 @@ namespace QuickBin {
 
 			// Write any unmanaged struct in one bulk copy
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public unsafe Serializer WriteUnmanaged<T>(in T value) where T : unmanaged {
+			public unsafe Serializer WriteUnmanaged<T>(ref T value) where T : unmanaged {
 				// Write the bytes of 'value' directly into dest
-				MemoryMarshal.Write(AllocateSpan(sizeof(T)), ref Unsafe.AsRef(value));
+				MemoryMarshal.Write(AllocateSpan(sizeof(T)), ref value);
 				return this;
 			}
 
