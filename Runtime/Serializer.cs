@@ -46,7 +46,7 @@ namespace QuickBin {
 		public static readonly LengthWriter Len_i32 = new(static (dest, len) => BinaryPrimitives.WriteInt32LittleEndian(dest, len), sizeof(int));
 		public static readonly LengthWriter Len_u32 = new(static (dest, len) => BinaryPrimitives.WriteUInt32LittleEndian(dest, (uint)len), sizeof(uint));
 		public static readonly LengthWriter Len_u16 = new(static (dest, len) => BinaryPrimitives.WriteUInt16LittleEndian(dest, (ushort)len), sizeof(ushort));
-		public static readonly LengthWriter Len_u8 = new(static (dest, len) => dest[0] = len, sizeof(byte));
+		public static readonly LengthWriter Len_u8 = new(static (dest, len) => dest[0] = (byte)len, sizeof(byte));
 
 
 		#region Constructors
@@ -63,7 +63,7 @@ namespace QuickBin {
 		#endregion Constructors
 
 		#region Enumerable
-			public IEnumerator<byte> GetEnumerator() => Bytes;
+			public IEnumerator<byte> GetEnumerator() => Bytes.GetEnumerator();
 			IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 		#endregion Enumerable
 
