@@ -33,19 +33,20 @@ namespace QuickBin {
 			}
 		}
 		
+		public delegate void WriteAction(Span<byte> dest, int length);
 		public sealed class LengthWriter {
-			public Action<Span<byte>, int> write;
+			public WriteAction write;
 			public int dataSize;
 			
-			public LengthWriter(Action<Span<byte>, int> write, int dataSize) {
+			public LengthWriter(WriteAction write, int dataSize) {
 				this.write = write;
 				this.dataSize = dataSize;
 			}
 		};
-		public static readonly LengthWriter Len_i32 = (BinaryPrimitives.WriteInt32LittleEndian, sizeof(int));
-		public static readonly LengthWriter Len_u32 = (BinaryPrimitives.WriteUInt32LittleEndian, sizeof(uint));
-		public static readonly LengthWriter Len_u16 = (BinaryPrimitives.WriteUInt16LittleEndian, sizeof(ushort));
-		public static readonly LengthWriter Len_u8 = (BinaryPrimitives.WriteUInt8LittleEndian, sizeof(byte));
+		public static readonly LengthWriter Len_i32 = new(BinaryPrimitives.WriteInt32LittleEndian, sizeof(int));
+		public static readonly LengthWriter Len_u32 = new(BinaryPrimitives.WriteUInt32LittleEndian, sizeof(uint));
+		public static readonly LengthWriter Len_u16 = new(BinaryPrimitives.WriteUInt16LittleEndian, sizeof(ushort));
+		public static readonly LengthWriter Len_u8 = new(BinaryPrimitives.WriteUInt8LittleEndian, sizeof(byte));
 
 
 		#region Constructors
