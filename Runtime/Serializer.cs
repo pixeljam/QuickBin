@@ -1,4 +1,5 @@
 using System;
+using System.Text;
 using System.Buffers.Binary;
 using System.Collections;
 using System.Collections.Generic;
@@ -32,7 +33,15 @@ namespace QuickBin {
 			}
 		}
 		
-		public sealed record LengthWriter(Action<Span<byte>, int> write, int dataSize) {};
+		public sealed class LengthWriter {
+			public Action<Span<byte>, int> write;
+			public int dataSize;
+			
+			public LengthWriter(Action<Span<byte>, int> write, int dataSize) {
+				this.write = write;
+				this.dataSize = dataSize;
+			}
+		};
 		public static readonly LengthWriter Len_i32 = (BinaryPrimitives.WriteInt32LittleEndian, sizeof(int));
 		public static readonly LengthWriter Len_u32 = (BinaryPrimitives.WriteUInt32LittleEndian, sizeof(uint));
 		public static readonly LengthWriter Len_u16 = (BinaryPrimitives.WriteUInt16LittleEndian, sizeof(ushort));
@@ -54,7 +63,7 @@ namespace QuickBin {
 
 		#region Enumerable
 			public IEnumerator<byte> GetEnumerator() => Bytes;
-			private IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+			IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 		#endregion Enumerable
 
 		#region Array casting
