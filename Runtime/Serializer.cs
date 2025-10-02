@@ -33,20 +33,20 @@ namespace QuickBin {
 			}
 		}
 		
-		public delegate void WriteAction(Span<byte> dest, int length);
-		public sealed class LengthWriter {
-			public WriteAction write;
+		public delegate void WriteAction<T>(Span<byte> dest, T length);
+		public sealed class LengthWriter<T> {
+			public WriteAction<T> write;
 			public int dataSize;
 			
-			public LengthWriter(WriteAction write, int dataSize) {
+			public LengthWriter(WriteAction<T> write, int dataSize) {
 				this.write = write;
 				this.dataSize = dataSize;
 			}
 		};
-		public static readonly LengthWriter Len_i32 = new(BinaryPrimitives.WriteInt32LittleEndian, sizeof(int));
-		public static readonly LengthWriter Len_u32 = new(BinaryPrimitives.WriteUInt32LittleEndian, sizeof(uint));
-		public static readonly LengthWriter Len_u16 = new(BinaryPrimitives.WriteUInt16LittleEndian, sizeof(ushort));
-		public static readonly LengthWriter Len_u8 = new(BinaryPrimitives.WriteUInt8LittleEndian, sizeof(byte));
+		public static readonly LengthWriter<int> Len_i32 = new(BinaryPrimitives.WriteInt32LittleEndian, sizeof(int));
+		public static readonly LengthWriter<uint> Len_u32 = new(BinaryPrimitives.WriteUInt32LittleEndian, sizeof(uint));
+		public static readonly LengthWriter<ushort> Len_u16 = new(BinaryPrimitives.WriteUInt16LittleEndian, sizeof(ushort));
+		public static readonly LengthWriter<byte> Len_u8 = new(static (dest, len) => dest[0] = len, sizeof(byte));
 
 
 		#region Constructors
@@ -358,11 +358,18 @@ namespace QuickBin {
 
 			// Unmanaged array bulk write (no per-element calls)
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public unsafe Serializer WriteUnmanagedArray<T>(ReadOnlySpan<T> values, LengthWriter? writer = null) where T : unmanaged {
+			public unsafe Serializer WriteUnmanagedArray<T>(ReadOnlySpan<T> values, LengthWriter writer = null) where T : unmanaged {
 				int bytes = values.Length * sizeof(T);
-				writer?.write(this, bytes);
+				int payloadStart = 0;
+				if (writer != null) payloadStart = writer.dataSize;
+				
+				var dest = AllocateSpan(bytes + payloadStart);
+				
+				writer?.write(dest, bytes);
 				if (bytes == 0) return this;
-				return Write(MemoryMarshal.AsBytes(values));
+				
+				MemoryMarshal.AsBytes(values).CopyTo(dest[payloadStart..]);
+				return this;
 			}
 		#endregion Writers
 
