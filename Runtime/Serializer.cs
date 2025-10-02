@@ -17,7 +17,7 @@ namespace QuickBin {
 	public sealed class Serializer : IEnumerable<byte> {
 		private const int MIBIBYTE = 1024 * 1024;
 		private const int MAX_STRING_CHUNK_SIZE = 4096;
-		private readonly byte[] _buffer;
+		private byte[] _buffer;
 		/// <summary>The number of bytes in the Serializer.</summary>
 		public int Length { get; private set; }
 
@@ -200,7 +200,7 @@ namespace QuickBin {
 			internal Serializer WriteGeneric<T>(int size, T value, ByteWriter<T> f) {
 				var dest = AllocateSpan(size);
 				f(dest, value);
-				// any non-flag write breaks flag packing: handled by GetSpan() call above
+				// any non-flag write breaks flag packing: handled by AllocateSpan() call above
 				return this;
 			}
 
@@ -214,7 +214,7 @@ namespace QuickBin {
 			/// <summary>Bulk copy of arbitrary byte data.</summary>
 			internal Serializer WriteGeneric(ReadOnlySpan<byte> value) {
 				if (value.Length == 0) return this;
-				var dest = GetSpan(value.Length);
+				var dest = AllocateSpan(value.Length);
 				value.CopyTo(dest);
 				return this;
 			}
@@ -305,7 +305,7 @@ namespace QuickBin {
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public Serializer Write(ReadOnlySpan<byte> bytes) {
 				if (bytes.Length == 0) return this;
-				var s = GetSpan(bytes.Length);
+				var s = AllocateSpan(bytes.Length);
 				bytes.CopyTo(s);
 				return this;
 			}
@@ -334,11 +334,11 @@ namespace QuickBin {
 					return this;
 				}
 				
-				var maxStringBytes = encoding.GetMaxByteCount(value);
+				var maxStringBytes = encoding.GetMaxByteCount(value.Length);
 				var dest = AllocateSpan(maxStringBytes + writer.dataSize);
 
 				var enc = encoding.GetEncoder();
-				var written = enc.GetBytes(value, dest[lengthPrefixerSize..], true);
+				var written = enc.GetBytes(value, dest[writer.dataSize..], true);
 				Length -= maxStringBytes - written;
 				
 				writer.write(dest, written);
@@ -346,7 +346,7 @@ namespace QuickBin {
 			}
 
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public Serializer Write(string value, LengthWriter writeLen) => Write(value, Encoding.UTF8, writeLen);
+			public Serializer Write(string value, LengthWriter writer) => Write(value, Encoding.UTF8, writer);
 
 			// Write any unmanaged struct in one bulk copy
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -358,9 +358,9 @@ namespace QuickBin {
 
 			// Unmanaged array bulk write (no per-element calls)
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public unsafe Serializer WriteUnmanagedArray<T>(ReadOnlySpan<T> values, LengthWriter? writeLen = null) where T : unmanaged {
+			public unsafe Serializer WriteUnmanagedArray<T>(ReadOnlySpan<T> values, LengthWriter? writer = null) where T : unmanaged {
 				int bytes = values.Length * sizeof(T);
-				writeLen?.Invoke(this, bytes);
+				writer?.write(this, bytes);
 				if (bytes == 0) return this;
 				return Write(MemoryMarshal.AsBytes(values));
 			}
