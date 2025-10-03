@@ -168,9 +168,9 @@ namespace QuickBin {
 		#endregion Flags
 
 		#region Length Patching
-			public ref struct ReservedLengthPrefixer {
-				public Span<byte> span;
-				internal int initialLength;
+			public readonly ref struct ReservedLengthPrefixer {
+				public readonly Span<byte> span;
+				internal readonly int initialLength;
 				
 				public ReservedLengthPrefixer(Serializer serializer, int byteCount) {
 					span = serializer.AllocateSpan(byteCount);
