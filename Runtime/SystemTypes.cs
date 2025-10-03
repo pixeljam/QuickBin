@@ -9,38 +9,57 @@ namespace QuickBin {
 		public static Serializer Write(this Serializer buffer, bool value) => buffer.Write(value ? (byte)1 : (byte)0);
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static Serializer Write(this Serializer buffer, char value) => buffer.Write((ushort)value); // UTF-16 code unit, LE
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static Serializer WriteBig(this Serializer buffer, char value) => buffer.WriteBig((ushort)value); // UTF-16 code unit, BE
 		
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static Serializer Write(this Serializer buffer, byte value) => buffer.WriteGeneric(sizeof(byte), value, static (dest, value) => dest[0] = value);
+		public static Serializer Write(this Serializer buffer, byte value) => buffer.WriteGeneric(value, static (dest, value) => dest[0] = value);
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static Serializer Write(this Serializer buffer, sbyte value) => buffer.WriteGeneric(sizeof(sbyte), value, static (dest, value) => dest[0] = (byte)value);
+		public static Serializer Write(this Serializer buffer, sbyte value) => buffer.WriteGeneric(value, static (dest, value) => dest[0] = (byte)value);
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static Serializer Write(this Serializer buffer, short value) => buffer.WriteGeneric(sizeof(short), value, BinaryPrimitives.WriteInt16LittleEndian);
+		public static Serializer Write(this Serializer buffer, ushort value) => buffer.WriteGeneric(value, BinaryPrimitives.WriteUInt16LittleEndian);
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static Serializer Write(this Serializer buffer, ushort value) => buffer.WriteGeneric(sizeof(ushort), value, BinaryPrimitives.WriteUInt16LittleEndian);
+		public static Serializer Write(this Serializer buffer, short value) => buffer.WriteGeneric(value, BinaryPrimitives.WriteInt16LittleEndian);
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static Serializer Write(this Serializer buffer, int value) => buffer.WriteGeneric(sizeof(int), value, BinaryPrimitives.WriteInt32LittleEndian);
+		public static Serializer Write(this Serializer buffer, uint value) => buffer.WriteGeneric(value, BinaryPrimitives.WriteUInt32LittleEndian);
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static Serializer Write(this Serializer buffer, uint value) => buffer.WriteGeneric(sizeof(uint), value, BinaryPrimitives.WriteUInt32LittleEndian);
+		public static Serializer Write(this Serializer buffer, int value) => buffer.WriteGeneric(value, BinaryPrimitives.WriteInt32LittleEndian);
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static Serializer Write(this Serializer buffer, long value) => buffer.WriteGeneric(sizeof(long), value, BinaryPrimitives.WriteInt64LittleEndian);
+		public static Serializer Write(this Serializer buffer, ulong value) => buffer.WriteGeneric(value, BinaryPrimitives.WriteUInt64LittleEndian);
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static Serializer Write(this Serializer buffer, ulong value) => buffer.WriteGeneric(sizeof(ulong), value, BinaryPrimitives.WriteUInt64LittleEndian);
+		public static Serializer Write(this Serializer buffer, long value) => buffer.WriteGeneric(value, BinaryPrimitives.WriteInt64LittleEndian);
+		
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static Serializer WriteBig(this Serializer buffer, ushort value) => buffer.WriteGeneric(value, BinaryPrimitives.WriteUInt16BigEndian);
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static Serializer WriteBig(this Serializer buffer, short value) => buffer.WriteGeneric(value, BinaryPrimitives.WriteInt16BigEndian);
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static Serializer WriteBig(this Serializer buffer, uint value) => buffer.WriteGeneric(value, BinaryPrimitives.WriteUInt32BigEndian);
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static Serializer WriteBig(this Serializer buffer, int value) => buffer.WriteGeneric(value, BinaryPrimitives.WriteInt32BigEndian);
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static Serializer WriteBig(this Serializer buffer, ulong value) => buffer.WriteGeneric(value, BinaryPrimitives.WriteUInt64BigEndian);
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static Serializer WriteBig(this Serializer buffer, long value) => buffer.WriteGeneric(value, BinaryPrimitives.WriteInt64BigEndian);
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static Serializer Write(this Serializer buffer, float value) => buffer.Write(BitConverter.SingleToInt32Bits(value));
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static Serializer Write(this Serializer buffer, double value) => buffer.Write(BitConverter.DoubleToInt64Bits(value));
-
+		
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static Serializer WriteBig(this Serializer buffer, float value) => buffer.WriteBig(BitConverter.SingleToInt32Bits(value));
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static Serializer WriteBig(this Serializer buffer, double value) => buffer.WriteBig(BitConverter.DoubleToInt64Bits(value));
+		
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static Serializer Write(this Serializer buffer, decimal value) {
-			// Decimal.GetBits returns four ints (lo, mid, hi, flags). Persist as 16 bytes LE.
 			int[] bits = decimal.GetBits(value);
 			var s = buffer.AllocateSpan(sizeof(decimal));
-			BinaryPrimitives.WriteInt32LittleEndian(s.Slice(0, 4),  bits[0]);
-			BinaryPrimitives.WriteInt32LittleEndian(s.Slice(4, 4),  bits[1]);
-			BinaryPrimitives.WriteInt32LittleEndian(s.Slice(8, 4),  bits[2]);
-			BinaryPrimitives.WriteInt32LittleEndian(s.Slice(12, 4), bits[3]);
+			BinaryPrimitives.WriteInt32LittleEndian(s[..4],  bits[0]);
+			BinaryPrimitives.WriteInt32LittleEndian(s[4..8],  bits[1]);
+			BinaryPrimitives.WriteInt32LittleEndian(s[8..12],  bits[2]);
+			BinaryPrimitives.WriteInt32LittleEndian(s[12..16], bits[3]);
 			return buffer;
 		}
 		
@@ -55,7 +74,7 @@ namespace QuickBin {
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static Serializer Write(this Serializer buffer, DateTime value) => buffer.Write(value.Ticks);
+		public static Serializer Write(this Serializer buffer, DateTime value) => buffer.Write(value.Ticks).Write((byte)value.Kind);
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static Serializer Write(this Serializer buffer, TimeSpan value) => buffer.Write(value.Ticks);
@@ -83,7 +102,7 @@ namespace QuickBin {
 
 			var enc = encoding.GetEncoder();
 			var written = enc.GetBytes(value, dest[writer.dataSize..], true);
-			buffer.length -= maxStringBytes - written;
+			buffer.bufferLength -= maxStringBytes - written;
 			
 			writer.write(dest, written);
 			return buffer;

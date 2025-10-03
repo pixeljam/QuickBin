@@ -253,7 +253,8 @@ namespace QuickBin {
 		
 		public static Deserializer Read(this Deserializer buffer, out DateTime produced) => buffer
 			.Read(out long ticks)
-			.Assign(new(ticks), out produced);
+			.Read(out byte kind)
+			.Assign(ticks >= DateTime.MinValue.Ticks && ticks <= DateTime.MaxValue.Ticks && Enum.IsDefined(typeof(DateTimeKind), kind) ? new(ticks, (DateTimeKind)kind) : default, out produced);
 
 		public static Deserializer Read(this Deserializer buffer, out TimeSpan produced) => buffer
 			.Read(out long ticks)
