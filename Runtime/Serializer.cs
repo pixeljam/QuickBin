@@ -271,12 +271,6 @@ namespace QuickBin {
 		#endregion Patching
 
 		#region Writers
-			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			internal unsafe Serializer WriteGeneric<T>(T value, ByteWriter<T> f) where T : unmanaged {
-				f(AllocateSpan(sizeof(T)), value);
-				return this;
-			}
-			
 			/// <summary>Writes a single unmanaged value by copying its bytes directly.</summary>
 			/// <remarks><b>This is a platform dependent operation. The endianness of the written bytes will be that of the current platform.</b></remarks>
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
