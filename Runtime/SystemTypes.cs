@@ -383,7 +383,7 @@ namespace QuickBin {
 
 		#region Version
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public static Serializer Write(this Serializer buffer, Version value) => buffer.Write(stackalloc int[4]{ value.Major, value.Minor, value.Build, value.Revision });
+			public static Serializer Write(this Serializer buffer, Version value) => buffer.Write(stackalloc int[4] { value.Major, value.Minor, value.Build, value.Revision });
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public static Serializer WriteBig(this Serializer buffer, Version value) => buffer.WriteBig(stackalloc int[4] { value.Major, value.Minor, value.Build, value.Revision });
 		#endregion Version

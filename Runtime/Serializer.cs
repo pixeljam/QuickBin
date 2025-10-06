@@ -117,20 +117,29 @@ namespace QuickBin {
 			Array.Resize(ref _buffer, newCap);
 		}
 
-		/// <summary>Returns a writable span of requested size at the current end, advancing Count.</summary>
+		/// <summary>Appends a mutable span of the at the end of the buffer and returns it for writing.</summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		internal Span<byte> AllocateSpan(int size) {
+		public Span<byte> AllocateSpan(int size) {
 			if (size < 0) throw new ArgumentOutOfRangeException(nameof(size));
-			if (size == 0) return Span<byte>.Empty;
 			
 			FlushPendingFlagByte(); // make sure flag groups don't get interleaved
+
+			if (size == 0) return Span<byte>.Empty;
+			
 			EnsureCapacity(size);
 			var span = _buffer.AsSpan(bufferLength, size);
 			bufferLength += size;
 			
 			return span;
 		}
-
+		
+		/// <summary>Appends a mutable span of the at the end of the buffer and returns it for writing.</summary>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public Serializer AllocateSpan(int byteCount, out Span<byte> span) {
+			span = AllocateSpan(byteCount);
+			return this;
+		}
+		
 		#region Flags
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			private void CommitFlagByte() {
@@ -184,15 +193,6 @@ namespace QuickBin {
 			public Serializer ReserveLength<T>(out ReservedLengthPrefixer<T> prefixer) where T : unmanaged {
 				FlushPendingFlagByte();
 				prefixer = new ReservedLengthPrefixer<T>(this);
-				return this;
-			}
-			
-			/// <summary>Reserves a number of bytes to be patched over later.</summary>
-			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public Serializer ReserveBytes(int byteCount, out Span<byte> span) {
-				if (byteCount <= 0) throw new ArgumentOutOfRangeException(nameof(byteCount));
-				FlushPendingFlagByte();
-				span = AllocateSpan(byteCount);
 				return this;
 			}
 			
@@ -279,7 +279,7 @@ namespace QuickBin {
 				// You can't pass properties/temporaries as ref, so callers would need to hoist to locals first, with in T, the compiler will create that temp for us at no additional runtime cost.
 
 				// Write the bytes of 'value' directly into dest
-				MemoryMarshal.Write(AllocateSpan(Unsafe.SizeOf(T)), ref Unsafe.AsRef(in value));
+				MemoryMarshal.Write(AllocateSpan(Unsafe.SizeOf<T>()), ref Unsafe.AsRef(in value));
 				return this;
 			}
 
@@ -288,7 +288,7 @@ namespace QuickBin {
 				// We use in T and Unsafe.AsRef() because we don't need to mutate value, and AsRef simply relabled the readonly ref created by in T as a writable ref T, so we get a cleaner API
 				// You can't pass properties/temporaries as ref, so callers would need to hoist to locals first, with in T, the compiler will create that temp for us at no additional runtime cost.
 
-				int sz = Unsafe.SizeOf(T);
+				int sz = Unsafe.SizeOf<T>();
 				ref byte baseRef = ref MemoryMarshal.GetReference(AllocateSpan(sz * 2));
 
 				var firstSpan = MemoryMarshal.CreateSpan(ref baseRef, sz);

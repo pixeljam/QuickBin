@@ -1,83 +1,86 @@
+using System;
+using System.Linq;
+using System.Buffers.Binary;
+using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 using QuickBin.ChainExtensions;
-using System.Linq;
-using System.Runtime.CompilerServices;
 
 namespace QuickBin {
 	public static partial class QuickBinExtensions {
 		#region Vector2
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public static Serializer Write(this Serializer buffer, Vector2 value) => buffer.WriteUnmanaged(ref value);
+			public static Serializer Write(this Serializer buffer, Vector2 value) => buffer.WriteUnmanaged(value);
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public static Serializer Write(this Serializer buffer, ReadOnlySpan<Vector2> values) => buffer.WriteUnmanagedArray(values);
 		#endregion Vector2
 
 		#region Vector2Int
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public static Serializer Write(this Serializer buffer, Vector2Int value) => buffer.WriteUnmanaged(ref value);
+			public static Serializer Write(this Serializer buffer, Vector2Int value) => buffer.WriteUnmanaged(value);
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public static Serializer Write(this Serializer buffer, ReadOnlySpan<Vector2Int> values) => buffer.WriteUnmanagedArray(values);
 		#endregion Vector2Int
 		
 		#region Vector3
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public static Serializer Write(this Serializer buffer, Vector3 value) => buffer.WriteUnmanaged(ref value);
+			public static Serializer Write(this Serializer buffer, Vector3 value) => buffer.WriteUnmanaged(value);
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public static Serializer Write(this Serializer buffer, ReadOnlySpan<Vector3> values) => buffer.WriteUnmanagedArray(values);
 		#endregion Vector3
 
 		#region Vector3Int
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public static Serializer Write(this Serializer buffer, Vector3Int value) => buffer.WriteUnmanaged(ref value);
+			public static Serializer Write(this Serializer buffer, Vector3Int value) => buffer.WriteUnmanaged(value);
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public static Serializer Write(this Serializer buffer, ReadOnlySpan<Vector3Int> values) => buffer.WriteUnmanagedArray(values);
 		#endregion Vector3Int
 
 		#region Vector4
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public static Serializer Write(this Serializer buffer, Vector4 value) => buffer.WriteUnmanaged(ref value);
+			public static Serializer Write(this Serializer buffer, Vector4 value) => buffer.WriteUnmanaged(value);
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public static Serializer Write(this Serializer buffer, ReadOnlySpan<Vector4> values) => buffer.WriteUnmanagedArray(values);
 		#endregion Vector4
 		
 		#region Quaternion
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public static Serializer Write(this Serializer buffer, Quaternion value) => buffer.WriteUnmanaged(ref value);
+			public static Serializer Write(this Serializer buffer, Quaternion value) => buffer.WriteUnmanaged(value);
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public static Serializer Write(this Serializer buffer, ReadOnlySpan<Quaternion> values) => buffer.WriteUnmanagedArray(values);
 		#endregion Quaternion
 
 		#region Color
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public static Serializer Write(this Serializer buffer, Color value) => buffer.WriteUnmanaged(ref value);
+			public static Serializer Write(this Serializer buffer, Color value) => buffer.WriteUnmanaged(value);
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public static Serializer Write(this Serializer buffer, ReadOnlySpan<Color> values) => buffer.WriteUnmanagedArray(values);
 		#endregion Color
 
 		#region Color32
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public static Serializer Write(this Serializer buffer, Color32 value) => buffer.WriteUnmanaged(ref value);
+			public static Serializer Write(this Serializer buffer, Color32 value) => buffer.WriteUnmanaged(value);
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public static Serializer Write(this Serializer buffer, ReadOnlySpan<Color32> values) => buffer.WriteUnmanagedArray(values);
 		#endregion Color32
 
 		#region Rect
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public static Serializer Write(this Serializer buffer, Rect value) => buffer.WriteUnmanaged(ref value);
+			public static Serializer Write(this Serializer buffer, Rect value) => buffer.WriteUnmanaged(value);
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public static Serializer Write(this Serializer buffer, ReadOnlySpan<Rect> values) => buffer.WriteUnmanagedArray(values);
 		#endregion Rect
 
 		#region RectInt
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public static Serializer Write(this Serializer buffer, RectInt value) => buffer.WriteUnmanaged(ref value);
+			public static Serializer Write(this Serializer buffer, RectInt value) => buffer.WriteUnmanaged(value);
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public static Serializer Write(this Serializer buffer, ReadOnlySpan<RectInt> values) => buffer.WriteUnmanagedArray(values);
 		#endregion RectInt
 
 		#region Matrix4x4
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public static Serializer Write(this Serializer buffer, Matrix4x4 value) => buffer.WriteUnmanaged(ref value);
+			public static Serializer Write(this Serializer buffer, Matrix4x4 value) => buffer.WriteUnmanaged(value);
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public static Serializer Write(this Serializer buffer, ReadOnlySpan<Matrix4x4> values) => buffer.WriteUnmanagedArray(values);
 		#endregion Matrix4x4
@@ -96,12 +99,14 @@ namespace QuickBin {
 
 				for (int i = 0, offset = 0; i < values.Length; i++, offset += pairBytes) {
 					var v = values[i];
+					var center = v.center;
+					var size = v.size;
 
 					var s0 = MemoryMarshal.CreateSpan(ref Unsafe.Add(ref baseRef, offset), v3Bytes);
-					MemoryMarshal.Write(s0, ref v.center);
+					MemoryMarshal.Write(s0, ref center);
 
 					var s1 = MemoryMarshal.CreateSpan(ref Unsafe.Add(ref baseRef, offset + v3Bytes), v3Bytes);
-					MemoryMarshal.Write(s1, ref v.size);
+					MemoryMarshal.Write(s1, ref size);
 				}
 
 				return buffer;
@@ -122,12 +127,14 @@ namespace QuickBin {
 
 				for (int i = 0, offset = 0; i < values.Length; i++, offset += pairBytes) {
 					var v = values[i];
+					var center = v.center;
+					var size = v.size;
 
 					var s0 = MemoryMarshal.CreateSpan(ref Unsafe.Add(ref baseRef, offset), v3Bytes);
-					MemoryMarshal.Write(s0, ref v.center);
+					MemoryMarshal.Write(s0, ref center);
 
 					var s1 = MemoryMarshal.CreateSpan(ref Unsafe.Add(ref baseRef, offset + v3Bytes), v3Bytes);
-					MemoryMarshal.Write(s1, ref v.size);
+					MemoryMarshal.Write(s1, ref size);
 				}
 
 				return buffer;
@@ -138,13 +145,13 @@ namespace QuickBin {
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public static Serializer Write(this Serializer buffer, AnimationCurve value) => buffer
 				.Write(value.keys.Length)
-				.Write((ReadOnlySpan<KeyFrame>)value.keys);
+				.Write(value.keys);
 
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public static Serializer Write(this Serializer buffer, ReadOnlySpan<AnimationCurve> curves) {
 				if (curves.Length == 0) return buffer;
 
-				// Its extremely unlikely anyone will ever need to bulk write Animation Curves, this will do 1 allocate span per curve, so it's not as fast as it could be.
+				// Its extremely unlikely anyone will ever need to bulk write Animation Curves, this will do 2 allocate span per curve, so it's not as fast as it could be.
 				for (int i = 0; i < curves.Length; i++)
 					buffer.Write(curves[i]); // writes count + payload via the bulk keyframe writer
 
