@@ -93,20 +93,16 @@ namespace QuickBin {
 				if (values.Length == 0) return buffer;
 
 				int v3Bytes = Unsafe.SizeOf<Vector3>();
-				int pairBytes = v3Bytes * 2;
 
-				ref byte baseRef = ref MemoryMarshal.GetReference(buffer.AllocateSpan(values.Length * pairBytes));
+				ref byte baseRef = ref MemoryMarshal.GetReference(buffer.AllocateSpan(values.Length * v3Bytes * 2));
 
-				for (int i = 0, offset = 0; i < values.Length; i++, offset += pairBytes) {
+				for (int i = 0, offset = 0; i < values.Length; i++) {
 					var v = values[i];
 					var center = v.center;
 					var size = v.size;
-
-					var s0 = MemoryMarshal.CreateSpan(ref Unsafe.Add(ref baseRef, offset), v3Bytes);
-					MemoryMarshal.Write(s0, ref center);
-
-					var s1 = MemoryMarshal.CreateSpan(ref Unsafe.Add(ref baseRef, offset + v3Bytes), v3Bytes);
-					MemoryMarshal.Write(s1, ref size);
+					
+					Serializer.ByteWrite(ref baseRef, ref offset, ref center);
+					Serializer.ByteWrite(ref baseRef, ref offset, ref size);
 				}
 
 				return buffer;
@@ -114,27 +110,22 @@ namespace QuickBin {
 		#endregion
 		
 		#region BoundsInt
-			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public static Serializer Write(this Serializer buffer, BoundsInt value) => buffer.WriteUnmanagedPair(value.center, value.size);
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public static Serializer Write(this Serializer buffer, ReadOnlySpan<BoundsInt> values) {
 				if (values.Length == 0) return buffer;
 
 				int v3Bytes = Unsafe.SizeOf<BoundsInt>();
-				int pairBytes = v3Bytes * 2;
+				ref byte baseRef = ref MemoryMarshal.GetReference(buffer.AllocateSpan(values.Length * v3Bytes * 2));
 
-				ref byte baseRef = ref MemoryMarshal.GetReference(buffer.AllocateSpan(values.Length * pairBytes));
-
-				for (int i = 0, offset = 0; i < values.Length; i++, offset += pairBytes) {
+				for (int i = 0, offset = 0; i < values.Length; i++) {
 					var v = values[i];
 					var center = v.center;
 					var size = v.size;
 
-					var s0 = MemoryMarshal.CreateSpan(ref Unsafe.Add(ref baseRef, offset), v3Bytes);
-					MemoryMarshal.Write(s0, ref center);
-
-					var s1 = MemoryMarshal.CreateSpan(ref Unsafe.Add(ref baseRef, offset + v3Bytes), v3Bytes);
-					MemoryMarshal.Write(s1, ref size);
+					Serializer.ByteWrite(ref baseRef, ref offset, ref center);
+					Serializer.ByteWrite(ref baseRef, ref offset, ref size);
 				}
 
 				return buffer;
@@ -163,36 +154,21 @@ namespace QuickBin {
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public static Serializer Write(this Serializer buffer, Keyframe value) => 
 				buffer.Write(stackalloc float[]{ value.time, value.value, value.inTangent, value.outTangent, value.inWeight, value.outWeight });
-
+			
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public static Serializer Write(this Serializer buffer, ReadOnlySpan<Keyframe> values) {
 				if (values.Length == 0) return buffer;
 
-				const int sz = sizeof(int); // writing floats via Int32 bits (LE)
-				int stride = 6 * sz; // 6 floats
+				var dest = MemoryMarshal.Cast<byte, float>(buffer.AllocateSpan(values.Length * 6 * sizeof(float)));
 
-				ref byte baseRef = ref MemoryMarshal.GetReference(buffer.AllocateSpan(values.Length * stride));
-
-				for (int i = 0, offset = 0; i < values.Length; i++, offset += stride) {
+				for (int i = 0, j = 0; i < values.Length; i++) {
 					var k = values[i];
-
-					var s0 = MemoryMarshal.CreateSpan(ref Unsafe.Add(ref baseRef, offset + 0 * sz), sz);
-					BinaryPrimitives.WriteInt32LittleEndian(s0, BitConverter.SingleToInt32Bits(k.time));
-
-					var s1 = MemoryMarshal.CreateSpan(ref Unsafe.Add(ref baseRef, offset + 1 * sz), sz);
-					BinaryPrimitives.WriteInt32LittleEndian(s1, BitConverter.SingleToInt32Bits(k.value));
-
-					var s2 = MemoryMarshal.CreateSpan(ref Unsafe.Add(ref baseRef, offset + 2 * sz), sz);
-					BinaryPrimitives.WriteInt32LittleEndian(s2, BitConverter.SingleToInt32Bits(k.inTangent));
-
-					var s3 = MemoryMarshal.CreateSpan(ref Unsafe.Add(ref baseRef, offset + 3 * sz), sz);
-					BinaryPrimitives.WriteInt32LittleEndian(s3, BitConverter.SingleToInt32Bits(k.outTangent));
-
-					var s4 = MemoryMarshal.CreateSpan(ref Unsafe.Add(ref baseRef, offset + 4 * sz), sz);
-					BinaryPrimitives.WriteInt32LittleEndian(s4, BitConverter.SingleToInt32Bits(k.inWeight));
-
-					var s5 = MemoryMarshal.CreateSpan(ref Unsafe.Add(ref baseRef, offset + 5 * sz), sz);
-					BinaryPrimitives.WriteInt32LittleEndian(s5, BitConverter.SingleToInt32Bits(k.outWeight));
+					dest[j++] = k.time;
+					dest[j++] = k.value;
+					dest[j++] = k.inTangent;
+					dest[j++] = k.outTangent;
+					dest[j++] = k.inWeight;
+					dest[j++] = k.outWeight;
 				}
 				
 				return buffer;

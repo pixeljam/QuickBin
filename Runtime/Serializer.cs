@@ -318,6 +318,34 @@ namespace QuickBin {
 			}
 		#endregion Writers
 
+		#region Performance
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public static Span<byte> ByteSlice(ref byte baseRef, int length) => MemoryMarshal.CreateSpan(ref baseRef, length);
+
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public static Span<byte> ByteSlice(ref byte baseRef, int offset, int length) => MemoryMarshal.CreateSpan(ref Unsafe.Add(ref baseRef, offset), length);
+
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public static Span<byte> ByteSlice(ref byte baseRef, ref int offset, int length) {
+				var slice = ByteSlice(ref baseRef, offset, length);
+				offset += length;
+				return slice;
+			}
+			
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public static void ByteWrite<T>(ref byte baseRef, ref T value) where T : unmanaged {
+				MemoryMarshal.Write(ByteSlice(ref baseRef, Unsafe.SizeOf<T>()), ref value);
+			}
+			
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public static void ByteWrite<T>(ref byte baseRef, int offset, ref T value) where T : unmanaged =>
+				MemoryMarshal.Write(ByteSlice(ref baseRef, offset, Unsafe.SizeOf<T>()), ref value);
+			
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public static void ByteWrite<T>(ref byte baseRef, ref int offset, ref T value) where T : unmanaged =>
+				MemoryMarshal.Write(ByteSlice(ref baseRef, ref offset, Unsafe.SizeOf<T>()), ref value);
+		#endregion Performance
+
 		#region Pooling
 			/// <summary>Get a Serializer from the pool (optionally with a capacity hint).</summary>
 			public static Serializer GetPooled(int capacityHint = 0) => SerializerPool.Get(capacityHint);
