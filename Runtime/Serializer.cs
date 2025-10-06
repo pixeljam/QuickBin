@@ -274,9 +274,29 @@ namespace QuickBin {
 			/// <summary>Writes a single unmanaged value by copying its bytes directly.</summary>
 			/// <remarks><b>This is a platform dependent operation. The endianness of the written bytes will be that of the current platform.</b></remarks>
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public unsafe Serializer WriteUnmanaged<T>(ref T value) where T : unmanaged {
+			public Serializer WriteUnmanaged<T>(in T value) where T : unmanaged {
+				// We use in T and Unsafe.AsRef() because we don't need to mutate value, and AsRef simply relabled the readonly ref created by in T as a writable ref T, so we get a cleaner API
+				// You can't pass properties/temporaries as ref, so callers would need to hoist to locals first, with in T, the compiler will create that temp for us at no additional runtime cost.
+
 				// Write the bytes of 'value' directly into dest
-				MemoryMarshal.Write(AllocateSpan(sizeof(T)), ref value);
+				MemoryMarshal.Write(AllocateSpan(Unsafe.SizeOf(T)), ref Unsafe.AsRef(in value));
+				return this;
+			}
+
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			public Serializer WriteUnmanagedPair<T>(in T first, in T second) where T : unmanaged {
+				// We use in T and Unsafe.AsRef() because we don't need to mutate value, and AsRef simply relabled the readonly ref created by in T as a writable ref T, so we get a cleaner API
+				// You can't pass properties/temporaries as ref, so callers would need to hoist to locals first, with in T, the compiler will create that temp for us at no additional runtime cost.
+
+				int sz = Unsafe.SizeOf(T);
+				ref byte baseRef = ref MemoryMarshal.GetReference(AllocateSpan(sz * 2));
+
+				var firstSpan = MemoryMarshal.CreateSpan(ref baseRef, sz);
+				MemoryMarshal.Write(firstSpan, ref Unsafe.AsRef(in first));
+
+				var secondSpan = MemoryMarshal.CreateSpan(ref Unsafe.Add(ref baseRef, sz), sz);
+				MemoryMarshal.Write(secondSpan, ref Unsafe.AsRef(in second));
+				
 				return this;
 			}
 			
