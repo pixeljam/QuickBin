@@ -102,7 +102,7 @@ namespace QuickBin {
 		
 		/// <summary>Ensures that there at least <paramref name="extraNeeded"/> bytes available for writing at the end of the buffer.</summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void EnsureAvailable(int extraNeeded) => EnsureCapacity(_buffer.Length + extraNeeded);
+		public void EnsureAvailable(int extraNeeded) => EnsureCapacity(Length + extraNeeded);
 		
 		/// <sumamy>Ensures that the total capacity of the buffer is at least <paramref name="required"/> bytes.</summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
