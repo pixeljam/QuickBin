@@ -99,14 +99,17 @@ namespace QuickBin {
 				return this;
 			}
 		#endregion Clearing
-
+		
+		/// <summary>Ensures that there at least <paramref name="extraNeeded"/> bytes available for writing at the end of the buffer.</summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private void EnsureCapacity(int extraNeeded) {
-			if (extraNeeded < 0) throw new ArgumentOutOfRangeException(nameof(extraNeeded));
+		public void EnsureAvailable(int extraNeeded) => EnsureCapacity(_buffer.Length + extraNeeded);
+		
+		/// <sumamy>Ensures that the total capacity of the buffer is at least <paramref name="required"/> bytes.</summary>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void EnsureCapacity(int required) {
+			if (required < 0) throw new ArgumentOutOfRangeException(nameof(required));
 			
-			int required = bufferLength + extraNeeded;
 			if (required <= _buffer.Length) return;
-			
 			int newCap = _buffer.Length == 0 ? 256 : _buffer.Length;
 			while (newCap < required) {
 				newCap = newCap < MIBIBYTE
@@ -126,7 +129,7 @@ namespace QuickBin {
 
 			if (size == 0) return Span<byte>.Empty;
 			
-			EnsureCapacity(size);
+			EnsureAvailable(size);
 			var span = _buffer.AsSpan(bufferLength, size);
 			bufferLength += size;
 			
@@ -155,13 +158,11 @@ namespace QuickBin {
 					CommitFlagByte();
 			}
 
-			/// <summary>
-			/// Packs booleans into a single byte (up to 8 per byte). Set <paramref name="forceNewByte"/> to start a new flag group.
-			/// </summary>
+			/// <summary>Packs booleans into a single byte (up to 8 per byte). Set <paramref name="forceNewByte"/> to start a new flag group.</summary>
 			public Serializer WriteFlag(bool value, bool forceNewByte = false) {
 				if (forceNewByte) FlushPendingFlagByte(true);
 
-				if (!hasPendingFlagByte) EnsureCapacity(1);
+				if (!hasPendingFlagByte) EnsureAvailable(1);
 
 				if (value) flagAccumulator |= (byte)(1 << flagBitIndex);
 				flagBitIndex++;
@@ -345,38 +346,24 @@ namespace QuickBin {
 			public static void ByteWrite<T>(ref byte baseRef, ref int offset, ref T value) where T : unmanaged =>
 				MemoryMarshal.Write(ByteSlice(ref baseRef, ref offset, Unsafe.SizeOf<T>()), ref value);
 		#endregion Performance
-
-		#region Pooling
-			/// <summary>Get a Serializer from the pool (optionally with a capacity hint).</summary>
-			public static Serializer GetPooled(int capacityHint = 0) => SerializerPool.Get(capacityHint);
-
-			/// <summary>Materialize to byte[] and return the Serializer to the pool.</summary>
-			public byte[] ToArrayAndReturn() => SerializerPool.ToArrayAndReturn(this);
-		#endregion Pooling
 	}
 
 	#region Pool
-		/// <summary>Very small, thread-unsafe pool; use from main thread in your capture loop.</summary>
-		public static class SerializerPool {
-			private static readonly Stack<Serializer> _pool = new();
+		public class SerializerPool {
+			private readonly Stack<Serializer> pool = new();
 
-			public static Serializer Get(int capacityHint = 0) {
-				if (_pool.Count > 0) {
-					var s = _pool.Pop();
-					s.Clear();
-					// opportunistic grow if we know we're about to write a lot
-					if (capacityHint > 0) {
-						// EnsureCapacity is internal; do a cheap reserve by writing/rewinding
-						// We avoid touching internals: just return; growth will happen lazily.
-					}
-					return s;
+			public Serializer Get(int capacityHint = 0) {
+				if (pool.Count > 0) {
+					var serializer = pool.Pop().Clear();
+					if (capacityHint > 0) serializer.EnsureCapacity(capacityHint);
+					return serializer;
 				}
 				return new(capacityHint);
 			}
 
-			public static byte[] ToArrayAndReturn(Serializer s) {
+			public byte[] ToArrayAndReturn(Serializer s) {
 				var arr = s.ToArray();
-				_pool.Push(s);
+				pool.Push(s);
 				return arr;
 			}
 		}
