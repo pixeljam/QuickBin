@@ -349,7 +349,7 @@ namespace QuickBin {
 	}
 
 	#region Pool
-		public class SerializerPool {
+		public sealed class SerializerPool {
 			private readonly Stack<Serializer> pool = new();
 
 			public Serializer Get(int capacityHint = 0) {
