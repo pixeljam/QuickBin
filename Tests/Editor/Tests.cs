@@ -1,7 +1,6 @@
 using NUnit.Framework;
 using QuickBin.ChainExtensions;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
@@ -235,6 +234,39 @@ namespace QuickBin.Tests {
 				.Read(out Version version);
 			
 			Assert.IsTrue(version.Equals(new Version(0b0001_0110_1111_0000, 0b0101_0110_0011_0100, 0b0001_0000_1011_0111, 0b0001_1100_1101_0001)));
+		}
+		
+		[Test]
+		public static void LengthPatching() {
+			var buffer = new Serializer()
+				.Write(1234)
+				.WriteFlag(true)
+				.ReserveLength<ushort>(out var prefixer)
+				.WriteFlag(true)
+				.WriteFlag(false)
+				.Write((long)18)
+				.Patch(prefixer)
+				.WriteFlag(false)
+				.WriteFlag(true);
+			
+			new Deserializer(buffer)
+				.Read(out int a)
+				.ReadFlag(out bool b)
+				.Read(out ushort length)
+				.ReadFlag(out bool c)
+				.ReadFlag(out bool d)
+				.Read(out long e)
+				.ReadFlag(out bool f)
+				.ReadFlag(out bool g);
+			
+			Assert.AreEqual(a, 1234);
+			Assert.IsTrue(b);
+			Assert.AreEqual(length, (ushort)(1 + sizeof(long)));
+			Assert.IsTrue(c);
+			Assert.IsFalse(d);
+			Assert.AreEqual(e, 18);
+			Assert.IsFalse(f);
+			Assert.IsTrue(g);
 		}
 	}
 	
