@@ -6,13 +6,6 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace QuickBin {
-	/// <summary>
-	/// High-performance binary writer with a single growable byte[] backing store.
-	/// - Bulk appends (no per-byte List.Add)
-	/// - Reusable via Clear() and a small pool (SerializerPool)
-	/// - Flag packing without mutating past bytes
-	/// - Supports reserving & patching previously written lengths
-	/// </summary>
 	public sealed class Serializer : IEnumerable<byte> {
 		private const int MIBIBYTE = 1024 * 1024;
 		
@@ -25,7 +18,7 @@ namespace QuickBin {
 		private int  flagBitIndex; // 0..7 number of bits already packed (0 means none pending)
 		private bool hasPendingFlagByte => flagBitIndex > 0;
 
-		/// <summary>The bytes in the Serializer (enumerable view).</summary>
+		/// <summary>An enumerable of all byte data currently written to the Serializer.</summary>
 		public IEnumerable<byte> Bytes {
 			get {
 				for (int i = 0; i < bufferLength; i++) yield return _buffer[i];
@@ -54,10 +47,8 @@ namespace QuickBin {
 
 
 		#region Constructors
-			public Serializer() : this(0) { }
-
 			/// <param name="capacity">Initial capacity hint in bytes.</param>
-			public Serializer(int capacity) {
+			public Serializer(int capacity = 0) {
 				if (capacity < 0) capacity = 0;
 				_buffer = capacity > 0 ? new byte[capacity] : Array.Empty<byte>();
 				bufferLength = 0;
@@ -74,7 +65,7 @@ namespace QuickBin {
 		#region Array casting
 			/// <summary>Implicitly materialize the written bytes.</summary>
 			public static implicit operator byte[](Serializer s) => s.ToArray();
-			/// <summary>Copies written bytes into a compact array.</summary>
+			/// <summary>Copies written bytes into an array.</summary>
 			public byte[] ToArray() {
 				// We don't want to mutate the serializer by doing this, but we do want to treat anything left in the flag accumulator as valid data.
 				// We know we must have a free byte in which to put any unfinished flag byte, because we would have allocated it with the first flag.
@@ -100,7 +91,7 @@ namespace QuickBin {
 			}
 		#endregion Clearing
 		
-		/// <summary>Ensures that there at least <paramref name="extraNeeded"/> bytes available for writing at the end of the buffer.</summary>
+		/// <summary>Ensures that there are at least <paramref name="extraNeeded"/> bytes available for writing at the end of the buffer.</summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void EnsureAvailable(int extraNeeded) => EnsureCapacity(Length + extraNeeded);
 		
@@ -120,7 +111,7 @@ namespace QuickBin {
 			Array.Resize(ref _buffer, newCap);
 		}
 
-		/// <summary>Appends a mutable span of the at the end of the buffer and returns it for writing.</summary>
+		/// <summary>Appends a mutable span at the end of the buffer and returns it for writing.</summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public Span<byte> AllocateSpan(int size) {
 			if (size < 0) throw new ArgumentOutOfRangeException(nameof(size));
@@ -136,7 +127,7 @@ namespace QuickBin {
 			return span;
 		}
 		
-		/// <summary>Appends a mutable span of the at the end of the buffer and returns it for writing.</summary>
+		/// <summary>Appends a mutable span at the end of the buffer and returns it for writing.</summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public Serializer AllocateSpan(int byteCount, out Span<byte> span) {
 			span = AllocateSpan(byteCount);
@@ -154,7 +145,7 @@ namespace QuickBin {
 			/// <summary>Flushes a partially filled flag byte into the buffer (if any).</summary>
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			private void FlushPendingFlagByte(bool force = false) {
-				if (hasPendingFlagByte && (flagBitIndex > 0 || force))
+				if (hasPendingFlagByte || force)
 					CommitFlagByte();
 			}
 
@@ -189,7 +180,7 @@ namespace QuickBin {
 				readonly internal int GetLength(Serializer serializer) => serializer.Length - initialLength;
 			}
 			
-			/// <summary>Reserves a spot in the Serializer to write a length later.</summary>
+			/// <summary>Reserves a spot in the Serializer to write a byte length later.</summary>
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public Serializer ReserveLength<T>(out ReservedLengthPrefixer<T> prefixer) where T : unmanaged {
 				FlushPendingFlagByte();
@@ -276,18 +267,16 @@ namespace QuickBin {
 			/// <remarks><b>This is a platform dependent operation. The endianness of the written bytes will be that of the current platform.</b></remarks>
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public Serializer WriteUnmanaged<T>(in T value) where T : unmanaged {
-				// We use in T and Unsafe.AsRef() because we don't need to mutate value, and AsRef simply relabled the readonly ref created by in T as a writable ref T, so we get a cleaner API
-				// You can't pass properties/temporaries as ref, so callers would need to hoist to locals first, with in T, the compiler will create that temp for us at no additional runtime cost.
-
-				// Write the bytes of 'value' directly into dest
+				// `in` will automatically evaluate properties, so it's preferable to `ref`, which doesn't.
+				// We don't ever mutate the value, but it needs to be passed into MemoryMarshal.Write as a `ref` regardless, so we use Unsafe.AsRef to satisfy the constraint.
 				MemoryMarshal.Write(AllocateSpan(Unsafe.SizeOf<T>()), ref Unsafe.AsRef(in value));
 				return this;
 			}
 
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public Serializer WriteUnmanagedPair<T>(in T first, in T second) where T : unmanaged {
-				// We use in T and Unsafe.AsRef() because we don't need to mutate value, and AsRef simply relabled the readonly ref created by in T as a writable ref T, so we get a cleaner API
-				// You can't pass properties/temporaries as ref, so callers would need to hoist to locals first, with in T, the compiler will create that temp for us at no additional runtime cost.
+			public Serializer WriteUnmanaged<T>(in T first, in T second) where T : unmanaged {
+				// `in` will automatically evaluate properties, so it's preferable to `ref`, which doesn't.
+				// We don't ever mutate the values, but they needs to be passed into MemoryMarshal.Write as a `ref` regardless, so we use Unsafe.AsRef to satisfy the constraint.
 
 				int sz = Unsafe.SizeOf<T>();
 				ref byte baseRef = ref MemoryMarshal.GetReference(AllocateSpan(sz * 2));
@@ -334,24 +323,28 @@ namespace QuickBin {
 			}
 			
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public static void ByteWrite<T>(ref byte baseRef, ref T value) where T : unmanaged {
-				MemoryMarshal.Write(ByteSlice(ref baseRef, Unsafe.SizeOf<T>()), ref value);
+			public static void ByteWrite<T>(ref byte baseRef, in T value) where T : unmanaged {
+				MemoryMarshal.Write(ByteSlice(ref baseRef, Unsafe.SizeOf<T>()), ref Unsafe.AsRef(value));
 			}
 			
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public static void ByteWrite<T>(ref byte baseRef, int offset, ref T value) where T : unmanaged =>
-				MemoryMarshal.Write(ByteSlice(ref baseRef, offset, Unsafe.SizeOf<T>()), ref value);
+			public static void ByteWrite<T>(ref byte baseRef, int offset, in T value) where T : unmanaged =>
+				MemoryMarshal.Write(ByteSlice(ref baseRef, offset, Unsafe.SizeOf<T>()), ref Unsafe.AsRef(value));
 			
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public static void ByteWrite<T>(ref byte baseRef, ref int offset, ref T value) where T : unmanaged =>
-				MemoryMarshal.Write(ByteSlice(ref baseRef, ref offset, Unsafe.SizeOf<T>()), ref value);
+			public static void ByteWrite<T>(ref byte baseRef, ref int offset, in T value) where T : unmanaged =>
+				MemoryMarshal.Write(ByteSlice(ref baseRef, ref offset, Unsafe.SizeOf<T>()), ref Unsafe.AsRef(value));
 		#endregion Performance
 	}
 
 	#region Pool
+		/// <summary>A pool of serializers which retain their capacity.</summary>
 		public sealed class SerializerPool {
 			private readonly Stack<Serializer> pool = new();
-
+			
+			/// <summary>Fetches an existing, empty Serializer from the pool, or creates a new one if there are none.</summary>
+			/// <param name="capacityHint">The minimum space the fetched Serializer should contain.</param>
+			/// <returns>An empty serializer.</returns>
 			public Serializer Get(int capacityHint = 0) {
 				if (pool.Count > 0) {
 					var serializer = pool.Pop().Clear();
@@ -360,10 +353,12 @@ namespace QuickBin {
 				}
 				return new(capacityHint);
 			}
-
-			public byte[] ToArrayAndReturn(Serializer s) {
-				var arr = s.ToArray();
-				pool.Push(s);
+			
+			/// <summary>Creates an array with the data committed to the Serializer, and returns the Serializer to the pool.</summary>
+			/// <returns>An array of bytes containing all data written to the Serializer.</returns>
+			public byte[] ToArrayAndReturn(Serializer serializer) {
+				var arr = serializer.ToArray();
+				pool.Push(serializer);
 				return arr;
 			}
 		}

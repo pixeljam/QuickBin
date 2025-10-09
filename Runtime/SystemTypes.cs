@@ -12,7 +12,7 @@ namespace QuickBin {
 			public static Serializer Write(this Serializer buffer, bool value) => buffer.Write(value ? (byte)1 : (byte)0);
 			
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public static Deserializer Read(this Deserializer buffer, out bool produced) => buffer.ReadGeneric(sizeof(bool),   BitConverter.ToBoolean,      out produced);
+			public static Deserializer Read(this Deserializer buffer, out bool produced) => buffer.ReadGeneric(sizeof(bool), BitConverter.ToBoolean, out produced);
 		#endregion bool
 
 		#region char
@@ -22,7 +22,7 @@ namespace QuickBin {
 			public static Serializer WriteBig(this Serializer buffer, char value) => buffer.WriteBig((ushort)value); // UTF-16 code unit, BE
 			
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public static Deserializer Read(this Deserializer buffer, out char produced) => buffer.ReadGeneric(sizeof(char),   BitConverter.ToChar,         out produced);
+			public static Deserializer Read(this Deserializer buffer, out char produced) => buffer.ReadGeneric(sizeof(char), BitConverter.ToChar, out produced);
 		#endregion char
 
 		#region string
@@ -36,8 +36,7 @@ namespace QuickBin {
 				var maxStringBytes = encoding.GetMaxByteCount(value.Length);
 				var dest = buffer.AllocateSpan(maxStringBytes + writer.dataSize);
 
-				var enc = encoding.GetEncoder();
-				var written = enc.GetBytes(value, dest[writer.dataSize..], true);
+				var written = encoding.GetEncoder().GetBytes(value, dest[writer.dataSize..], true);
 				buffer.bufferLength -= maxStringBytes - written;
 				
 				writer.write(dest, written);
@@ -61,7 +60,7 @@ namespace QuickBin {
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public static Deserializer Read(this Deserializer buffer, out string produced, int? length = null) => buffer
 				.Read(out produced, Encoding.UTF8, length);
-				
+			
 			/// <summary>Reads a string from the Deserializer.</summary>
 			/// <param name="produced">The string that was read.</param>
 			/// <param name="encoding">The encoding to use.</param>
@@ -105,7 +104,7 @@ namespace QuickBin {
 				}
 				
 				[MethodImpl(MethodImplOptions.AggressiveInlining)]
-				public static Deserializer Read(this Deserializer buffer, out byte produced) => buffer.ReadGeneric(sizeof(byte),   (span) => span[0],           out produced);
+				public static Deserializer Read(this Deserializer buffer, out byte produced) => buffer.ReadGeneric(sizeof(byte), (span) => span[0], out produced);
 			
 				/// <summary>Reads a byte array from the Deserializer.</summary>
 				/// <param name="produced">The byte array that was read.</param>
@@ -161,7 +160,7 @@ namespace QuickBin {
 				}
 				
 				[MethodImpl(MethodImplOptions.AggressiveInlining)]
-				public static Deserializer Read(this Deserializer buffer, out sbyte produced) => buffer.ReadGeneric(sizeof(sbyte),  (span) => (sbyte)span[0],    out produced);
+				public static Deserializer Read(this Deserializer buffer, out sbyte produced) => buffer.ReadGeneric(sizeof(sbyte), (span) => (sbyte)span[0], out produced);
 			#endregion sbyte
 		#endregion 8-bit
 
@@ -208,7 +207,7 @@ namespace QuickBin {
 			#endregion ushort BE
 			
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			private static Deserializer Read(this Deserializer buffer, out short produced,  Endianness endianness) => buffer.ReadGeneric(sizeof(short),  endianness.read_i16, out produced);
+			private static Deserializer Read(this Deserializer buffer, out short produced, Endianness endianness) => buffer.ReadGeneric(sizeof(short), endianness.read_i16, out produced);
 
 			#region short LE
 				[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -225,7 +224,7 @@ namespace QuickBin {
 				}
 				
 				[MethodImpl(MethodImplOptions.AggressiveInlining)]
-				public static Deserializer Read(this Deserializer buffer, out short produced)  => buffer.Read(out produced, Endianness.little);
+				public static Deserializer Read(this Deserializer buffer, out short produced) => buffer.Read(out produced, Endianness.little);
 			#endregion short LE
 
 			#region short BE
@@ -245,13 +244,13 @@ namespace QuickBin {
 				}
 				
 				[MethodImpl(MethodImplOptions.AggressiveInlining)]
-				public static Deserializer ReadBig(this Deserializer buffer, out short produced)  => buffer.Read(out produced, Endianness.big);
+				public static Deserializer ReadBig(this Deserializer buffer, out short produced) => buffer.Read(out produced, Endianness.big);
 			#endregion short BE
 		#endregion 16-bit
 
 		#region 32-bit
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			private static Deserializer Read(this Deserializer buffer, out uint produced,   Endianness endianness) => buffer.ReadGeneric(sizeof(uint),   endianness.read_u32, out produced);
+			private static Deserializer Read(this Deserializer buffer, out uint produced, Endianness endianness) => buffer.ReadGeneric(sizeof(uint), endianness.read_u32, out produced);
 			
 			#region uint LE
 				[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -268,7 +267,7 @@ namespace QuickBin {
 				}
 				
 				[MethodImpl(MethodImplOptions.AggressiveInlining)]
-				public static Deserializer Read(this Deserializer buffer, out uint produced)   => buffer.Read(out produced, Endianness.little);
+				public static Deserializer Read(this Deserializer buffer, out uint produced) => buffer.Read(out produced, Endianness.little);
 			#endregion uint LE
 
 			#region uint BE
@@ -288,11 +287,11 @@ namespace QuickBin {
 				}
 				
 				[MethodImpl(MethodImplOptions.AggressiveInlining)]
-				public static Deserializer ReadBig(this Deserializer buffer, out uint produced)   => buffer.Read(out produced, Endianness.big);
+				public static Deserializer ReadBig(this Deserializer buffer, out uint produced) => buffer.Read(out produced, Endianness.big);
 			#endregion uint BE
 			
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			private static Deserializer Read(this Deserializer buffer, out int produced,    Endianness endianness) => buffer.ReadGeneric(sizeof(int),    endianness.read_i32, out produced);
+			private static Deserializer Read(this Deserializer buffer, out int produced, Endianness endianness) => buffer.ReadGeneric(sizeof(int), endianness.read_i32, out produced);
 
 			#region int LE
 				[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -309,7 +308,7 @@ namespace QuickBin {
 				}
 				
 				[MethodImpl(MethodImplOptions.AggressiveInlining)]
-				public static Deserializer Read(this Deserializer buffer, out int produced)    => buffer.Read(out produced, Endianness.little);
+				public static Deserializer Read(this Deserializer buffer, out int produced) => buffer.Read(out produced, Endianness.little);
 			#endregion int LE
 
 			#region int BE
@@ -329,7 +328,7 @@ namespace QuickBin {
 				}
 				
 				[MethodImpl(MethodImplOptions.AggressiveInlining)]
-				public static Deserializer ReadBig(this Deserializer buffer, out int produced)    => buffer.Read(out produced, Endianness.big);
+				public static Deserializer ReadBig(this Deserializer buffer, out int produced) => buffer.Read(out produced, Endianness.big);
 			#endregion int BE
 			
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -351,7 +350,7 @@ namespace QuickBin {
 				}
 				
 				[MethodImpl(MethodImplOptions.AggressiveInlining)]
-				public static Deserializer Read(this Deserializer buffer, out float produced)  => buffer.Read(out produced, Endianness.little);
+				public static Deserializer Read(this Deserializer buffer, out float produced) => buffer.Read(out produced, Endianness.little);
 			#endregion float LE
 
 			#region float BE
@@ -371,13 +370,13 @@ namespace QuickBin {
 				}
 				
 				[MethodImpl(MethodImplOptions.AggressiveInlining)]
-				public static Deserializer ReadBig(this Deserializer buffer, out float produced)  => buffer.Read(out produced, Endianness.big);
+				public static Deserializer ReadBig(this Deserializer buffer, out float produced) => buffer.Read(out produced, Endianness.big);
 			#endregion float BE
 		#endregion 32-bit
 
 		#region 64-bit
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			private static Deserializer Read(this Deserializer buffer, out ulong produced,  Endianness endianness) => buffer.ReadGeneric(sizeof(ulong),  endianness.read_u64, out produced);
+			private static Deserializer Read(this Deserializer buffer, out ulong produced, Endianness endianness) => buffer.ReadGeneric(sizeof(ulong), endianness.read_u64, out produced);
 			
 			#region ulong LE
 				[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -394,7 +393,7 @@ namespace QuickBin {
 				}
 				
 				[MethodImpl(MethodImplOptions.AggressiveInlining)]
-				public static Deserializer Read(this Deserializer buffer, out ulong produced)  => buffer.Read(out produced, Endianness.little);
+				public static Deserializer Read(this Deserializer buffer, out ulong produced) => buffer.Read(out produced, Endianness.little);
 			#endregion ulong LE
 
 			#region ulong BE
@@ -414,11 +413,11 @@ namespace QuickBin {
 				}
 				
 				[MethodImpl(MethodImplOptions.AggressiveInlining)]
-				public static Deserializer ReadBig(this Deserializer buffer, out ulong produced)  => buffer.Read(out produced, Endianness.big);
+				public static Deserializer ReadBig(this Deserializer buffer, out ulong produced) => buffer.Read(out produced, Endianness.big);
 			#endregion ulong BE
 			
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			private static Deserializer Read(this Deserializer buffer, out long produced,   Endianness endianness) => buffer.ReadGeneric(sizeof(long),   endianness.read_i64, out produced);
+			private static Deserializer Read(this Deserializer buffer, out long produced, Endianness endianness) => buffer.ReadGeneric(sizeof(long), endianness.read_i64, out produced);
 
 			#region long LE
 				[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -435,7 +434,7 @@ namespace QuickBin {
 				}
 				
 				[MethodImpl(MethodImplOptions.AggressiveInlining)]
-				public static Deserializer Read(this Deserializer buffer, out long produced)   => buffer.Read(out produced, Endianness.little);
+				public static Deserializer Read(this Deserializer buffer, out long produced) => buffer.Read(out produced, Endianness.little);
 			#endregion long LE
 
 			#region long BE
@@ -455,7 +454,7 @@ namespace QuickBin {
 				}
 				
 				[MethodImpl(MethodImplOptions.AggressiveInlining)]
-				public static Deserializer ReadBig(this Deserializer buffer, out long produced)   => buffer.Read(out produced, Endianness.big);
+				public static Deserializer ReadBig(this Deserializer buffer, out long produced) => buffer.Read(out produced, Endianness.big);
 			#endregion long BE
 			
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -569,8 +568,8 @@ namespace QuickBin {
 			public static Serializer Write(this Serializer buffer, Version value) => buffer.Write(stackalloc int[4] { value.Major, value.Minor, value.Build, value.Revision });
 			
 			const int SIGNLESS_MASK = 0b0111_1111_1111_1111;
-			/// <note>Version does not support negative values, so the sign bit is completely ignored by this method.
-			/// Note that this is not the same thing as the absolute value.</note>
+			/// <remarks>Version does not support negative values, so the sign bit is completely ignored by this method.
+			/// Note that this is not the same thing as the absolute value.</remarks>
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public static Deserializer Read(this Deserializer buffer, out Version produced) => buffer
 				.Read(out uint major)

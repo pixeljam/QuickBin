@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
 using UnityEngine;
@@ -158,7 +157,7 @@ namespace QuickBin {
 
 		#region Bounds
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public static Serializer Write(this Serializer buffer, Bounds value) => buffer.WriteUnmanagedPair(value.center, value.size);
+			public static Serializer Write(this Serializer buffer, Bounds value) => buffer.WriteUnmanaged(value.center, value.size);
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public static Serializer Write(this Serializer buffer, ReadOnlySpan<Bounds> values) {
 				if (values.Length == 0) return buffer;
@@ -169,11 +168,9 @@ namespace QuickBin {
 
 				for (int i = 0, offset = 0; i < values.Length; i++) {
 					var v = values[i];
-					var center = v.center;
-					var size = v.size;
 					
-					Serializer.ByteWrite(ref baseRef, ref offset, ref center);
-					Serializer.ByteWrite(ref baseRef, ref offset, ref size);
+					Serializer.ByteWrite(ref baseRef, ref offset, v.center);
+					Serializer.ByteWrite(ref baseRef, ref offset, v.size);
 				}
 
 				return buffer;
@@ -187,7 +184,7 @@ namespace QuickBin {
 		
 		#region BoundsInt
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public static Serializer Write(this Serializer buffer, BoundsInt value) => buffer.WriteUnmanagedPair(value.center, value.size);
+			public static Serializer Write(this Serializer buffer, BoundsInt value) => buffer.WriteUnmanaged(value.center, value.size);
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public static Serializer Write(this Serializer buffer, ReadOnlySpan<BoundsInt> values) {
 				if (values.Length == 0) return buffer;
@@ -197,11 +194,9 @@ namespace QuickBin {
 
 				for (int i = 0, offset = 0; i < values.Length; i++) {
 					var v = values[i];
-					var center = v.center;
-					var size = v.size;
 
-					Serializer.ByteWrite(ref baseRef, ref offset, ref center);
-					Serializer.ByteWrite(ref baseRef, ref offset, ref size);
+					Serializer.ByteWrite(ref baseRef, ref offset, v.center);
+					Serializer.ByteWrite(ref baseRef, ref offset, v.size);
 				}
 
 				return buffer;
