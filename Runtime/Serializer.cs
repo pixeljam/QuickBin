@@ -144,14 +144,13 @@ namespace QuickBin {
 
 			/// <summary>Flushes a partially filled flag byte into the buffer (if any).</summary>
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			private void FlushPendingFlagByte(bool force = false) {
-				if (hasPendingFlagByte || force)
-					CommitFlagByte();
+			private void FlushPendingFlagByte() {
+				if (hasPendingFlagByte) CommitFlagByte();
 			}
 
 			/// <summary>Packs booleans into a single byte (up to 8 per byte). Set <paramref name="forceNewByte"/> to start a new flag group.</summary>
 			public Serializer WriteFlag(bool value, bool forceNewByte = false) {
-				if (forceNewByte) FlushPendingFlagByte(true);
+				if (forceNewByte) FlushPendingFlagByte();
 
 				if (!hasPendingFlagByte) EnsureAvailable(1);
 
