@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 
 namespace QuickBin.Tests {
-	public static partial class Tests {
+	public static partial class MainFeatures {
 		[Test]
 		public static void MaxValues() {
 			var buffer = new Serializer()
@@ -268,6 +268,84 @@ namespace QuickBin.Tests {
 			Assert.IsFalse(f);
 			Assert.IsTrue(g);
 		}
+		
+		[Test]
+		public static void BulkWriting() {
+			var buffer = new Serializer()
+				.Write(stackalloc byte[] { 0, 1, 2 })
+				.Write(stackalloc sbyte[] { 3, -4, 5 })
+				.Write(stackalloc ushort[] { 6, 7, 8 })
+				.Write(stackalloc short[] { 9, -10, 11 })
+				.Write(stackalloc uint[] { 12, 13, 14 })
+				.Write(stackalloc int[] { 15, -16, 17 })
+				.Write(stackalloc ulong[] { 18, 19, 20 })
+				.Write(stackalloc long[] { 21, -22, 23 })
+				.Write(stackalloc float[] { 0.1f, -0.2f, 0.3f })
+				.Write(stackalloc double[] { 0.4f, -0.5f, 0.6f });
+			
+			new Deserializer(buffer)
+				.Read(out byte byte1)
+				.Read(out byte byte2)
+				.Read(out byte byte3)
+				.Read(out sbyte sbyte1)
+				.Read(out sbyte sbyte2)
+				.Read(out sbyte sbyte3)
+				.Read(out ushort ushort1)
+				.Read(out ushort ushort2)
+				.Read(out ushort ushort3)
+				.Read(out short short1)
+				.Read(out short short2)
+				.Read(out short short3)
+				.Read(out uint uint1)
+				.Read(out uint uint2)
+				.Read(out uint uint3)
+				.Read(out int int1)
+				.Read(out int int2)
+				.Read(out int int3)
+				.Read(out ulong ulong1)
+				.Read(out ulong ulong2)
+				.Read(out ulong ulong3)
+				.Read(out long long1)
+				.Read(out long long2)
+				.Read(out long long3)
+				.Read(out float float1)
+				.Read(out float float2)
+				.Read(out float float3)
+				.Read(out double double1)
+				.Read(out double double2)
+				.Read(out double double3);
+			
+			Assert.AreEqual(byte1, 0);
+			Assert.AreEqual(byte2, 1);
+			Assert.AreEqual(byte3, 2);
+			Assert.AreEqual(sbyte1, 3);
+			Assert.AreEqual(sbyte2, -4);
+			Assert.AreEqual(sbyte3, 5);
+			Assert.AreEqual(ushort1, 6);
+			Assert.AreEqual(ushort2, 7);
+			Assert.AreEqual(ushort3, 8);
+			Assert.AreEqual(short1, 9);
+			Assert.AreEqual(short2, -10);
+			Assert.AreEqual(short3, 11);
+			Assert.AreEqual(uint1, 12);
+			Assert.AreEqual(uint2, 13);
+			Assert.AreEqual(uint3, 14);
+			Assert.AreEqual(int1, 15);
+			Assert.AreEqual(int2, -16);
+			Assert.AreEqual(int3, 17);
+			Assert.AreEqual(ulong1, 18);
+			Assert.AreEqual(ulong2, 19);
+			Assert.AreEqual(ulong3, 20);
+			Assert.AreEqual(long1, 21);
+			Assert.AreEqual(long2, -22);
+			Assert.AreEqual(long3, 23);
+			Assert.AreEqual(float1, 0.1f);
+			Assert.AreEqual(float2, -0.2f);
+			Assert.AreEqual(float3, 0.3f);
+			Assert.AreEqual(double1, 0.4f);
+			Assert.AreEqual(double2, -0.5f);
+			Assert.AreEqual(double3, 0.6f);
+		}
 	}
 	
 	// The following test ensures that even if a type can be implicitly cast to another type, the correct Write method is called.
@@ -284,7 +362,7 @@ namespace QuickBin.Tests {
 			.Write(value.Value);
 	}
 	
-	public static partial class Tests {
+	public static partial class MainFeatures {
 		[Test]
 		public static void WriteWithoutCasting() {
 			var buffer = new Serializer()

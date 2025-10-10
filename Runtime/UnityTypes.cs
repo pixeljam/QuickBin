@@ -54,7 +54,7 @@ namespace QuickBin {
 				.Read(out int x)
 				.Read(out int y)
 				.Read(out int z)
-				.Assign(new(x, y), out produced);
+				.Assign(new(x, y, z), out produced);
 		#endregion Vector3Int
 
 		#region Vector4
@@ -184,18 +184,18 @@ namespace QuickBin {
 		
 		#region BoundsInt
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public static Serializer Write(this Serializer buffer, BoundsInt value) => buffer.WriteUnmanaged(value.center, value.size);
+			public static Serializer Write(this Serializer buffer, BoundsInt value) => buffer.Write(stackalloc Vector3Int[] { value.position, value.size });
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public static Serializer Write(this Serializer buffer, ReadOnlySpan<BoundsInt> values) {
 				if (values.Length == 0) return buffer;
 
-				int v3Bytes = Unsafe.SizeOf<BoundsInt>();
+				int v3Bytes = Unsafe.SizeOf<Vector3Int>();
 				ref byte baseRef = ref MemoryMarshal.GetReference(buffer.AllocateSpan(values.Length * v3Bytes * 2));
 
 				for (int i = 0, offset = 0; i < values.Length; i++) {
 					var v = values[i];
 
-					Serializer.ByteWrite(ref baseRef, ref offset, v.center);
+					Serializer.ByteWrite(ref baseRef, ref offset, v.position);
 					Serializer.ByteWrite(ref baseRef, ref offset, v.size);
 				}
 
@@ -203,9 +203,9 @@ namespace QuickBin {
 			}
 
 			public static Deserializer Read(this Deserializer buffer, out BoundsInt produced) => buffer
-				.Read(out Vector3Int center)
+				.Read(out Vector3Int position)
 				.Read(out Vector3Int size)
-				.Assign(new(center, size), out produced);
+				.Assign(new(position, size), out produced);
 		#endregion BoundsInt
 		
 		#region AnimationCurve
@@ -218,7 +218,7 @@ namespace QuickBin {
 			public static Serializer Write(this Serializer buffer, ReadOnlySpan<AnimationCurve> curves) {
 				if (curves.Length == 0) return buffer;
 
-				// Its extremely unlikely anyone will ever need to bulk write Animation Curves, this will do 2 allocate span per curve, so it's not as fast as it could be.
+				// It's extremely unlikely anyone will ever need to bulk write Animation Curves. This will do allocate span twice per curve, so it's not as fast as it could be.
 				for (int i = 0; i < curves.Length; i++)
 					buffer.Write(curves[i]); // writes count + payload via the bulk keyframe writer
 
@@ -233,23 +233,29 @@ namespace QuickBin {
 		
 		#region KeyFrame
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public static Serializer Write(this Serializer buffer, Keyframe value) => 
-				buffer.Write(stackalloc float[]{ value.time, value.value, value.inTangent, value.outTangent, value.inWeight, value.outWeight });
+			public static Serializer Write(this Serializer buffer, Keyframe value) => buffer
+				.Write(stackalloc float[]{ value.time, value.value, value.inTangent, value.outTangent, value.inWeight, value.outWeight })
+				.Write((byte)value.weightedMode);
 			
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public static Serializer Write(this Serializer buffer, ReadOnlySpan<Keyframe> values) {
 				if (values.Length == 0) return buffer;
 
-				var dest = MemoryMarshal.Cast<byte, float>(buffer.AllocateSpan(values.Length * 6 * sizeof(float)));
+				ref byte baseRef = ref MemoryMarshal.GetReference(buffer.AllocateSpan(values.Length * (sizeof(float) * 6 + sizeof(byte))));
 
-				for (int i = 0, j = 0; i < values.Length; i++) {
+				for (int i = 0, offset = 0; i < values.Length; i++) {
 					var k = values[i];
-					dest[j++] = k.time;
-					dest[j++] = k.value;
-					dest[j++] = k.inTangent;
-					dest[j++] = k.outTangent;
-					dest[j++] = k.inWeight;
-					dest[j++] = k.outWeight;
+					
+					Serializer.ByteWrite(ref baseRef, ref offset, k.time);
+					Serializer.ByteWrite(ref baseRef, ref offset, k.value);
+					
+					Serializer.ByteWrite(ref baseRef, ref offset, k.inTangent);
+					Serializer.ByteWrite(ref baseRef, ref offset, k.outTangent);
+					
+					Serializer.ByteWrite(ref baseRef, ref offset, k.inWeight);
+					Serializer.ByteWrite(ref baseRef, ref offset, k.outWeight);
+					
+					Serializer.ByteWrite(ref baseRef, ref offset, (byte)k.weightedMode);
 				}
 				
 				return buffer;
@@ -262,7 +268,8 @@ namespace QuickBin {
 				.Read(out float outTangent)
 				.Read(out float inWeight)
 				.Read(out float outWeight)
-				.Assign(buffer.Overflowed ? default : new(time, value, inTangent, outTangent, inWeight, outWeight), out produced);
+				.Read(out byte weightedMode)
+				.Assign(buffer.Overflowed ? default : new(time, value, inTangent, outTangent, inWeight, outWeight) {weightedMode = (WeightedMode)weightedMode}, out produced);
 		#endregion KeyFrame
 	}
 }

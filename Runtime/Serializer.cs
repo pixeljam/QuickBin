@@ -356,6 +356,7 @@ namespace QuickBin {
 			/// <summary>Creates an array with the data committed to the Serializer, and returns the Serializer to the pool.</summary>
 			/// <returns>An array of bytes containing all data written to the Serializer.</returns>
 			public byte[] ToArrayAndReturn(Serializer serializer) {
+				if (serializer == null) return Array.Empty<byte>();
 				var arr = serializer.ToArray();
 				pool.Push(serializer);
 				return arr;
