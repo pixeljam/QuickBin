@@ -217,7 +217,7 @@ namespace QuickBin.Tests {
 			deserializer = new Deserializer(serializer)
 				.Read(out byte[] everything);
 			
-			Assert.AreEqual(arr.Append((byte)arr.Length).Concat(arr), everything);
+			Assert.AreEqual(arr.Prepend((byte)arr.Length).Concat(arr), everything);
 		}
 		
 		[Test]
