@@ -61,9 +61,9 @@ namespace QuickBin.Tests {
 				.WriteFlag(false)
 				.WriteFlag(true);
 			
-			Assert.AreEqual(((byte[])buffer)[0], (byte)0b0001_0110);
-			Assert.AreEqual(((byte[])buffer)[1], (byte)0b0000_0011);
-			Assert.AreEqual(((byte[])buffer)[2], (byte)0b0000_0010);
+			Assert.AreEqual((byte)0b0001_0110, ((byte[])buffer)[0]);
+			Assert.AreEqual((byte)0b0000_0011, ((byte[])buffer)[1]);
+			Assert.AreEqual((byte)0b0000_0010, ((byte[])buffer)[2]);
 			
 			new Deserializer(buffer)
 				.ReadFlag(out bool a)
@@ -200,6 +200,27 @@ namespace QuickBin.Tests {
 		}
 		
 		[Test]
+		public static void WriteReadArray() {
+			var arr = new byte[] {1, 2, 3, 4, 5};
+			
+			var serializer = new Serializer()
+				.Write(arr, Serializer.Len_u8)
+				.Write(arr);
+			
+			var deserializer = new Deserializer(serializer)
+				.Read(out byte[] lengthArr, Deserializer.Len_u8)
+				.Read(out byte[] noLengthArr);
+			
+			Assert.AreEqual(arr, lengthArr);
+			Assert.AreEqual(arr, noLengthArr);
+			
+			deserializer = new Deserializer(serializer)
+				.Read(out byte[] everything);
+			
+			Assert.AreEqual(arr.Append((byte)arr.Length).Concat(arr), everything);
+		}
+		
+		[Test]
 		public static void Endianness() {
 			var buffer = new Serializer()
 				.Write((ushort)0x1234)
@@ -208,18 +229,18 @@ namespace QuickBin.Tests {
 			
 			byte[] bytes = buffer;
 			
-			Assert.AreEqual(bytes[0..2], new byte[] {0x34, 0x12});
-			Assert.AreEqual(bytes[2..4], new byte[] {0x12, 0x34});
-			Assert.AreEqual(bytes[4..6], new byte[] {0x34, 0x12});
+			Assert.AreEqual(new byte[] {0x34, 0x12}, bytes[0..2]);
+			Assert.AreEqual(new byte[] {0x12, 0x34}, bytes[2..4]);
+			Assert.AreEqual(new byte[] {0x34, 0x12}, bytes[4..6]);
 			
 			new Deserializer(bytes)
 				.Read(out ushort littleEndianA)
 				.ReadBig(out ushort bigEndian)
 				.Read(out ushort littleEndianB);
 			
-			Assert.AreEqual(littleEndianA, 0x1234);
-			Assert.AreEqual(bigEndian, 0x1234);
-			Assert.AreEqual(littleEndianB, 0x1234);
+			Assert.AreEqual(0x1234, littleEndianA);
+			Assert.AreEqual(0x1234, bigEndian);
+			Assert.AreEqual(0x1234, littleEndianB);
 		}
 		
 		[Test]
@@ -259,12 +280,12 @@ namespace QuickBin.Tests {
 				.ReadFlag(out bool f)
 				.ReadFlag(out bool g);
 			
-			Assert.AreEqual(a, 1234);
+			Assert.AreEqual(1234, a);
 			Assert.IsTrue(b);
-			Assert.AreEqual(length, (ushort)(1 + sizeof(long)));
+			Assert.AreEqual((ushort)(1 + sizeof(long)), length);
 			Assert.IsTrue(c);
 			Assert.IsFalse(d);
-			Assert.AreEqual(e, 18);
+			Assert.AreEqual(18, e);
 			Assert.IsFalse(f);
 			Assert.IsTrue(g);
 		}
@@ -315,36 +336,36 @@ namespace QuickBin.Tests {
 				.Read(out double double2)
 				.Read(out double double3);
 			
-			Assert.AreEqual(byte1, 0);
-			Assert.AreEqual(byte2, 1);
-			Assert.AreEqual(byte3, 2);
-			Assert.AreEqual(sbyte1, 3);
-			Assert.AreEqual(sbyte2, -4);
-			Assert.AreEqual(sbyte3, 5);
-			Assert.AreEqual(ushort1, 6);
-			Assert.AreEqual(ushort2, 7);
-			Assert.AreEqual(ushort3, 8);
-			Assert.AreEqual(short1, 9);
-			Assert.AreEqual(short2, -10);
-			Assert.AreEqual(short3, 11);
-			Assert.AreEqual(uint1, 12);
-			Assert.AreEqual(uint2, 13);
-			Assert.AreEqual(uint3, 14);
-			Assert.AreEqual(int1, 15);
-			Assert.AreEqual(int2, -16);
-			Assert.AreEqual(int3, 17);
-			Assert.AreEqual(ulong1, 18);
-			Assert.AreEqual(ulong2, 19);
-			Assert.AreEqual(ulong3, 20);
-			Assert.AreEqual(long1, 21);
-			Assert.AreEqual(long2, -22);
-			Assert.AreEqual(long3, 23);
-			Assert.AreEqual(float1, 0.1f);
-			Assert.AreEqual(float2, -0.2f);
-			Assert.AreEqual(float3, 0.3f);
-			Assert.AreEqual(double1, 0.4f);
-			Assert.AreEqual(double2, -0.5f);
-			Assert.AreEqual(double3, 0.6f);
+			Assert.AreEqual(0, byte1);
+			Assert.AreEqual(1, byte2);
+			Assert.AreEqual(2, byte3);
+			Assert.AreEqual(3, sbyte1);
+			Assert.AreEqual(-4, sbyte2);
+			Assert.AreEqual(5, sbyte3);
+			Assert.AreEqual(6, ushort1);
+			Assert.AreEqual(7, ushort2);
+			Assert.AreEqual(8, ushort3);
+			Assert.AreEqual(9, short1);
+			Assert.AreEqual(-10, short2);
+			Assert.AreEqual(11, short3);
+			Assert.AreEqual(12, uint1);
+			Assert.AreEqual(13, uint2);
+			Assert.AreEqual(14, uint3);
+			Assert.AreEqual(15, int1);
+			Assert.AreEqual(-16, int2);
+			Assert.AreEqual(17, int3);
+			Assert.AreEqual(18, ulong1);
+			Assert.AreEqual(19, ulong2);
+			Assert.AreEqual(20, ulong3);
+			Assert.AreEqual(21, long1);
+			Assert.AreEqual(-22, long2);
+			Assert.AreEqual(23, long3);
+			Assert.AreEqual(0.1f, float1);
+			Assert.AreEqual(-0.2f, float2);
+			Assert.AreEqual(0.3f, float3);
+			Assert.AreEqual(0.4f, double1);
+			Assert.AreEqual(-0.5f, double2);
+			Assert.AreEqual(0.6f, double3);
 		}
 	}
 	
@@ -368,7 +389,7 @@ namespace QuickBin.Tests {
 			var buffer = new Serializer()
 				.Write(new Castable(0));
 			
-			Assert.AreEqual(buffer.Length, sizeof(int));
+			Assert.AreEqual(sizeof(int), buffer.Length);
 		}
 	}
 }
