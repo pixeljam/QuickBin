@@ -1,6 +1,7 @@
 using System;
 using System.Buffers.Binary;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -345,8 +346,8 @@ namespace QuickBin {
 			/// <param name="capacityHint">The minimum space the fetched Serializer should contain.</param>
 			/// <returns>An empty serializer.</returns>
 			public Serializer Get(int capacityHint = 0) {
-				if (pool.Count > 0) {
-					var serializer = pool.Pop().Clear();
+				if (pool.TryPop(out var serializer)) {
+					serializer.Clear();
 					if (capacityHint > 0) serializer.EnsureCapacity(capacityHint);
 					return serializer;
 				}
@@ -357,6 +358,33 @@ namespace QuickBin {
 			/// <returns>An array of bytes containing all data written to the Serializer.</returns>
 			public byte[] ToArrayAndReturn(Serializer serializer) {
 				if (serializer == null) return Array.Empty<byte>();
+				var arr = serializer.ToArray();
+				pool.Push(serializer);
+				return arr;
+			}
+		}
+		
+		/// <summary>A thread-safe pool of serializers which retain their capacity.</summary>
+		public sealed class ConcurrentSerializerPool {
+			private readonly ConcurrentStack<Serializer> pool = new();
+			
+			/// <summary>Fetches an existing, empty Serializer from the pool, or creates a new one if there are none.</summary>
+			/// <param name="capacityHint">The minimum space the fetched Serializer should contain.</param>
+			/// <returns>An empty serializer.</returns>
+			public Serializer Get(int capacityHint = 0) {
+				if (pool.TryPop(out var serializer)) {
+					serializer.Clear();
+					if (capacityHint > 0) serializer.EnsureCapacity(capacityHint);
+					return serializer;
+				}
+				return new(capacityHint);
+			}
+			
+			/// <summary>Creates an array with the data committed to the Serializer, and returns the Serializer to the pool.</summary>
+			/// <returns>An array of bytes containing all data written to the Serializer.</returns>
+			public byte[] ToArrayAndReturn(Serializer serializer) {
+				if (serializer == null) return Array.Empty<byte>();
+				
 				var arr = serializer.ToArray();
 				pool.Push(serializer);
 				return arr;
