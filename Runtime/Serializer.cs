@@ -165,21 +165,25 @@ namespace QuickBin {
 
 		#region Patching
 			public readonly ref struct ReservedLengthPrefixer<T> where T : unmanaged {
-				internal readonly Span<byte> span;
+				internal readonly int index;
 				internal readonly int initialLength;
-				
-				// The unsafe constraint is actually incorrect. sizeof(T) is allowed in safe code where T : unmanaged
-				// https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/operators/sizeof
+
 				[MethodImpl(MethodImplOptions.AggressiveInlining)]
-				internal unsafe ReservedLengthPrefixer(Serializer serializer) {
-					span = serializer.AllocateSpan(sizeof(T));
+				internal ReservedLengthPrefixer(Serializer serializer) {
+					index = serializer.bufferLength;
+					serializer.AllocateSpan(Unsafe.SizeOf<T>());
 					initialLength = serializer.Length;
 				}
-				
+
 				[MethodImpl(MethodImplOptions.AggressiveInlining)]
-				readonly internal int GetLength(Serializer serializer) => serializer.Length - initialLength;
+				readonly internal int GetLength(Serializer serializer) =>
+					serializer.Length - initialLength;
+
+				[MethodImpl(MethodImplOptions.AggressiveInlining)]
+				readonly internal Span<byte> GetSpan(Serializer serializer) =>
+					serializer._buffer.AsSpan(index, Unsafe.SizeOf<T>());
 			}
-			
+
 			/// <summary>Reserves a spot in the Serializer to write a byte length later.</summary>
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public Serializer ReserveLength<T>(out ReservedLengthPrefixer<T> prefixer) where T : unmanaged {
@@ -187,77 +191,124 @@ namespace QuickBin {
 				prefixer = new ReservedLengthPrefixer<T>(this);
 				return this;
 			}
-			
+
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public Serializer Patch(ReservedLengthPrefixer<byte> reserved) {
-				reserved.span[0] = (byte)reserved.GetLength(this);
+				reserved.GetSpan(this)[0] = (byte)reserved.GetLength(this);
 				return this;
 			}
+
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public Serializer Patch(ReservedLengthPrefixer<sbyte> reserved) {
-				reserved.span[0] = (byte)(sbyte)reserved.GetLength(this);
+				reserved.GetSpan(this)[0] = (byte)(sbyte)reserved.GetLength(this);
 				return this;
 			}
-			
+
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public Serializer Patch(ReservedLengthPrefixer<ushort> reserved) {
-				BinaryPrimitives.WriteUInt16LittleEndian(reserved.span, (ushort)reserved.GetLength(this));
+				BinaryPrimitives.WriteUInt16LittleEndian(
+					reserved.GetSpan(this),
+					(ushort)reserved.GetLength(this)
+				);
 				return this;
 			}
+
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public Serializer Patch(ReservedLengthPrefixer<short> reserved) {
-				BinaryPrimitives.WriteInt16LittleEndian(reserved.span, (short)reserved.GetLength(this));
+				BinaryPrimitives.WriteInt16LittleEndian(
+					reserved.GetSpan(this),
+					(short)reserved.GetLength(this)
+				);
 				return this;
 			}
+
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public Serializer Patch(ReservedLengthPrefixer<uint> reserved) {
-				BinaryPrimitives.WriteUInt32LittleEndian(reserved.span, (uint)reserved.GetLength(this));
+				BinaryPrimitives.WriteUInt32LittleEndian(
+					reserved.GetSpan(this),
+					(uint)reserved.GetLength(this)
+				);
 				return this;
 			}
+
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public Serializer Patch(ReservedLengthPrefixer<int> reserved) {
-				BinaryPrimitives.WriteInt32LittleEndian(reserved.span, reserved.GetLength(this));
+				BinaryPrimitives.WriteInt32LittleEndian(
+					reserved.GetSpan(this),
+					reserved.GetLength(this)
+				);
 				return this;
 			}
+
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public Serializer Patch(ReservedLengthPrefixer<ulong> reserved) {
-				BinaryPrimitives.WriteUInt64LittleEndian(reserved.span, (ulong)reserved.GetLength(this));
+				BinaryPrimitives.WriteUInt64LittleEndian(
+					reserved.GetSpan(this),
+					(ulong)reserved.GetLength(this)
+				);
 				return this;
 			}
+
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public Serializer Patch(ReservedLengthPrefixer<long> reserved) {
-				BinaryPrimitives.WriteInt64LittleEndian(reserved.span, reserved.GetLength(this));
+				BinaryPrimitives.WriteInt64LittleEndian(
+					reserved.GetSpan(this),
+					reserved.GetLength(this)
+				);
 				return this;
 			}
-			
+
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public Serializer PatchBig(ReservedLengthPrefixer<ushort> reserved) {
-				BinaryPrimitives.WriteUInt16BigEndian(reserved.span, (ushort)reserved.GetLength(this));
+				BinaryPrimitives.WriteUInt16BigEndian(
+					reserved.GetSpan(this),
+					(ushort)reserved.GetLength(this)
+				);
 				return this;
 			}
+
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public Serializer PatchBig(ReservedLengthPrefixer<short> reserved) {
-				BinaryPrimitives.WriteInt16BigEndian(reserved.span, (short)reserved.GetLength(this));
+				BinaryPrimitives.WriteInt16BigEndian(
+					reserved.GetSpan(this),
+					(short)reserved.GetLength(this)
+				);
 				return this;
 			}
+
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public Serializer PatchBig(ReservedLengthPrefixer<uint> reserved) {
-				BinaryPrimitives.WriteUInt32BigEndian(reserved.span, (uint)reserved.GetLength(this));
+				BinaryPrimitives.WriteUInt32BigEndian(
+					reserved.GetSpan(this),
+					(uint)reserved.GetLength(this)
+				);
 				return this;
 			}
+
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public Serializer PatchBig(ReservedLengthPrefixer<int> reserved) {
-				BinaryPrimitives.WriteInt32BigEndian(reserved.span, reserved.GetLength(this));
+				BinaryPrimitives.WriteInt32BigEndian(
+					reserved.GetSpan(this),
+					reserved.GetLength(this)
+				);
 				return this;
 			}
+
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public Serializer PatchBig(ReservedLengthPrefixer<ulong> reserved) {
-				BinaryPrimitives.WriteUInt64BigEndian(reserved.span, (ulong)reserved.GetLength(this));
+				BinaryPrimitives.WriteUInt64BigEndian(
+					reserved.GetSpan(this),
+					(ulong)reserved.GetLength(this)
+				);
 				return this;
 			}
+
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public Serializer PatchBig(ReservedLengthPrefixer<long> reserved) {
-				BinaryPrimitives.WriteInt64BigEndian(reserved.span, reserved.GetLength(this));
+				BinaryPrimitives.WriteInt64BigEndian(
+					reserved.GetSpan(this),
+					reserved.GetLength(this)
+				);
 				return this;
 			}
 		#endregion Patching
