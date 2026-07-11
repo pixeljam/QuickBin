@@ -291,6 +291,31 @@ namespace QuickBin.Tests {
 		}
 		
 		[Test]
+		public static void LengthPatchingAfterBufferResize() {
+			// Start with a buffer exactly large enough for the reserved int slot so
+			// that every subsequent Write forces Array.Resize. This guards against
+			// the stale-span bug that the index-based ReservedLengthPrefixer was
+			// introduced to fix.
+			var buffer = new Serializer(capacity: sizeof(int))
+				.ReserveLength<int>(out var prefixer)
+				.Write(1L)
+				.Write(2L)
+				.Write(3L)
+				.Patch(prefixer);
+
+			new Deserializer(buffer)
+				.Read(out int length)
+				.Read(out long a)
+				.Read(out long b)
+				.Read(out long c);
+
+			Assert.AreEqual(3 * sizeof(long), length);
+			Assert.AreEqual(1L, a);
+			Assert.AreEqual(2L, b);
+			Assert.AreEqual(3L, c);
+		}
+
+		[Test]
 		public static void BulkWriting() {
 			var buffer = new Serializer()
 				.Write(stackalloc byte[] { 0, 1, 2 })
